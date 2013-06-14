@@ -11,10 +11,7 @@
 
 #include "include/bcm_host.h"
 #include "libs/ilclient/ilclient.h"
-//#include "include/libavutil/avutil.h"
 #include "include/libavformat/avformat.h"
-//#include "include/libavcodec/avcodec.h"
-
 
 static
 void
@@ -39,45 +36,11 @@ query_components() {
     OMX_Deinit();
 }
 
-static 
-int 
-open_codec_context(int *stream_idx, AVFormatContext *fmt_ctx, enum AVMediaType type) {
-    int ret;
-    AVStream *st;
-    AVCodecContext *dec_ctx = NULL;
-    AVCodec *dec = NULL;
-
-    ret = av_find_best_stream(fmt_ctx, type, -1, -1, NULL, 0);
-    if (ret < 0) {
-        fprintf(stderr, "Could not find stream in input file\n");
-        return ret;
-    } else {
-        *stream_idx = ret;
-        st = fmt_ctx->streams[*stream_idx];
-
-        /* find decoder for the stream */
-        dec_ctx = st->codec;
-        dec = avcodec_find_decoder(dec_ctx->codec_id);
-        if (!dec) {
-            fprintf(stderr, "Failed to find codec\n");
-            return ret;
-        }
-
-        if ((ret = avcodec_open2(dec_ctx, dec, NULL)) < 0) {
-            fprintf(stderr, "Failed to open codec\n");
-            return ret;
-        }
-    }
-
-    return 0;
-}
-
 static
 int
 init_streams_and_codecs(AVFormatContext *fmt_ctx, AVStream **video_stream, AVStream **audio_stream,
         AVCodecContext **video_ctx, AVCodecContext **audio_ctx) {
-    // Find the first video stream
-
+    
     *video_ctx = NULL;
     *video_stream = NULL;
     *audio_ctx = NULL;
@@ -98,6 +61,32 @@ init_streams_and_codecs(AVFormatContext *fmt_ctx, AVStream **video_stream, AVStr
     return -1;
 }
 
+static
+void
+extract_video_stream(AVFormatContext *fmt_ctx, AVStream *video_stream) {
+    AVPacket packet;
+    FILE *output_file = NULL;
+
+    av_init_packet(&packet);
+    packet.data = NULL;
+    packet.size = 0;
+
+    output_file = fopen("myfile.h264", "w+b");
+
+    //start reading frames 
+    while (av_read_frame(fmt_ctx, &packet) >= 0) {
+
+        if (packet.stream_index == video_stream->index) {
+            //we are dealing with video frames
+            fwrite(packet.data, sizeof (*packet.data), packet.size, output_file);
+        } 
+        
+        av_free_packet(&packet);
+    }
+    
+    fclose(output_file);
+}
+
 int main(int argc, char **argv) {
 
     AVFormatContext *fmt_ctx = NULL;
@@ -105,8 +94,6 @@ int main(int argc, char **argv) {
     AVCodecContext *audio_codec_ctx = NULL;
     AVStream *video_stream = NULL;
     AVStream *audio_stream = NULL;
-    AVPacket packet;
-    FILE *output_file = NULL;
     
     av_register_all();
     if (avformat_open_input(&fmt_ctx, argv[1], NULL, NULL) < 0) {
@@ -123,39 +110,14 @@ int main(int argc, char **argv) {
         printf("Error identifying video/audio streams\n");
         return -1;
     }
-
-
-    //AVCodec *videoDecoder = avcodec_find_decoder(video_codec_ctx->codec_id);
     
-    av_init_packet(&packet);
-    packet.data = NULL;
-    packet.size = 0;
-    
-    output_file = fopen("myfile.h264", "wb");
-    
-    //start reading frames 
-    while(av_read_frame(fmt_ctx, &packet) >= 0) {
-        
-        if(packet.stream_index == video_stream->index) {
-            //we are dealing with video frames
-            fwrite(packet.data, sizeof(*packet.data), packet.size, output_file);
-            
-        } else if (packet.stream_index == audio_stream->index) {
-            continue;
-        }
-        
-        
-        av_free_packet(&packet);
-    }
-            
-    
+    extract_video_stream(fmt_ctx, video_stream);
     
     //clean up 
-    
     avcodec_close(video_codec_ctx);
     avcodec_close(audio_codec_ctx);
     avformat_close_input(&fmt_ctx);
-    fclose(output_file);
+    
 }
 
 
