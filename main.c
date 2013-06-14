@@ -106,7 +106,8 @@ int main(int argc, char **argv) {
     AVStream *video_stream = NULL;
     AVStream *audio_stream = NULL;
     AVPacket packet;
-
+    FILE *output_file = NULL;
+    
     av_register_all();
     if (avformat_open_input(&fmt_ctx, argv[1], NULL, NULL) < 0) {
         abort();
@@ -130,15 +131,19 @@ int main(int argc, char **argv) {
     packet.data = NULL;
     packet.size = 0;
     
+    output_file = fopen("myfile.h264", "wb");
+    
     //start reading frames 
     while(av_read_frame(fmt_ctx, &packet) >= 0) {
         
         if(packet.stream_index == video_stream->index) {
             //we are dealing with video frames
-            printf("received video frame. doing nothing\n");
+            fwrite(packet.data, sizeof(*packet.data), packet.size, output_file);
+            
         } else if (packet.stream_index == audio_stream->index) {
-            printf("we have audio - skipping\n");
+            continue;
         }
+        
         
         av_free_packet(&packet);
     }
@@ -150,7 +155,7 @@ int main(int argc, char **argv) {
     avcodec_close(video_codec_ctx);
     avcodec_close(audio_codec_ctx);
     avformat_close_input(&fmt_ctx);
-
+    fclose(output_file);
 }
 
 
