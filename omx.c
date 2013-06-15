@@ -17,7 +17,8 @@ omx_event_handler(OMX_IN OMX_HANDLETYPE hComponent,
         OMX_IN OMX_EVENTTYPE eEvent,
         OMX_IN OMX_U32 nData1,
         OMX_IN OMX_U32 nData2,
-        OMX_IN OMX_PTR pEventData) {
+        OMX_IN OMX_PTR pEventData) 
+{
     
     struct omx_component_t* component = (struct omx_component_t*) pAppData;
 
@@ -79,7 +80,8 @@ static
 OMX_ERRORTYPE
 omx_empty_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
         OMX_IN OMX_PTR pAppData,
-        OMX_IN OMX_BUFFERHEADERTYPE* pBuffer) {
+        OMX_IN OMX_BUFFERHEADERTYPE* pBuffer) 
+{
 
     struct omx_component_t* component = (struct omx_component_t*) pAppData;
 
@@ -111,7 +113,8 @@ omx_fill_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
  */
 static
 void
-omx_disable_all_ports(struct omx_component_t* component) {
+omx_disable_all_ports(struct omx_component_t* component) 
+{
     OMX_PORT_PARAM_TYPE ports;
     OMX_INDEXTYPE types[] = {OMX_IndexParamAudioInit, OMX_IndexParamVideoInit, OMX_IndexParamImageInit, OMX_IndexParamOtherInit};
     int i;
@@ -168,7 +171,8 @@ omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* componen
  * @return 
  */
 OMX_ERRORTYPE
-omx_send_command_and_wait0(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData) {
+omx_send_command_and_wait0(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData) 
+{
     pthread_mutex_lock(&component->cmd_queue_mutex);
     component->cmd.hComponent = component->h;
     component->cmd.Cmd = Cmd;
@@ -187,7 +191,8 @@ omx_send_command_and_wait0(struct omx_component_t* component, OMX_COMMANDTYPE Cm
  * @return 
  */
 OMX_ERRORTYPE
-omx_send_command_and_wait1(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData) {
+omx_send_command_and_wait1(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData) 
+{
     pthread_mutex_lock(&component->cmd_queue_mutex);
     while (component->cmd.hComponent) {
         /* pthread_cond_wait releases the mutex (which must be locked) and blocks on the condition variable */
@@ -208,7 +213,8 @@ omx_send_command_and_wait(struct omx_component_t* component, OMX_COMMANDTYPE Cmd
 /* Based on allocbufs from omxtx.
    Buffers are connected as a one-way linked list using pAppPrivate as the pointer to the next element */
 void
-omx_alloc_buffers(struct omx_component_t *component, int port) {
+omx_alloc_buffers(struct omx_component_t *component, int port) 
+{
     int i;
     OMX_BUFFERHEADERTYPE *list = NULL, **end = &list;
     OMX_PARAM_PORTDEFINITIONTYPE portdef;
@@ -223,7 +229,7 @@ omx_alloc_buffers(struct omx_component_t *component, int port) {
 
         buf = vcos_malloc_aligned(portdef.nBufferSize, portdef.nBufferAlignment, "buffer");
 
-        printf("Allocated a buffer of %u bytes\n", (unsigned int) portdef.nBufferSize);
+        printf("Allocated a buffer of %u bytes\n", portdef.nBufferSize);
 
         OERR(OMX_UseBuffer(component->h, end, port, NULL, portdef.nBufferSize, buf));
 
@@ -233,79 +239,68 @@ omx_alloc_buffers(struct omx_component_t *component, int port) {
     component->buffers = list;
 }
 
+OMX_ERRORTYPE
+omx_setup_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec) {
+    OMX_VIDEO_PARAM_PORTFORMATTYPE format;
+    OMX_TIME_CONFIG_CLOCKSTATETYPE cstate;
 
-OMX_ERRORTYPE 
-omx_setup_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec, char* audio_dest, int is_hd)
-{
-  OMX_VIDEO_PARAM_PORTFORMATTYPE format;
-  OMX_TIME_CONFIG_CLOCKSTATETYPE cstate;
+    OMX_CONFIG_BOOLEANTYPE configBoolTrue;
+    OMX_INIT_STRUCTURE(configBoolTrue);
+    configBoolTrue.bEnabled = OMX_TRUE;
 
-  OMX_CONFIG_BOOLEANTYPE configBoolTrue;
-  OMX_INIT_STRUCTURE(configBoolTrue);
-  configBoolTrue.bEnabled = OMX_TRUE;
+    omx_init_component(pipe, &pipe->video_decode, "OMX.broadcom.video_decode");
+    omx_init_component(pipe, &pipe->video_render, "OMX.broadcom.video_render");
+    omx_init_component(pipe, &pipe->clock, "OMX.broadcom.clock");
 
-  omx_init_component(pipe, &pipe->video_decode, "OMX.broadcom.video_decode");
-  omx_init_component(pipe, &pipe->video_render, "OMX.broadcom.video_render");
-  omx_init_component(pipe, &pipe->clock, "OMX.broadcom.clock");
+    OMX_INIT_STRUCTURE(cstate);
+    cstate.eState = OMX_TIME_ClockStateWaitingForStartTime;
+    cstate.nWaitMask = OMX_CLOCKPORT0 | OMX_CLOCKPORT1;
+    OERR(OMX_SetParameter(pipe->clock.h, OMX_IndexConfigTimeClockState, &cstate));
 
-  OMX_INIT_STRUCTURE(cstate);
-  cstate.eState = OMX_TIME_ClockStateWaitingForStartTime;
-  cstate.nWaitMask = OMX_CLOCKPORT0|OMX_CLOCKPORT1;
-  OERR(OMX_SetParameter(pipe->clock.h, OMX_IndexConfigTimeClockState, &cstate));
+    omx_init_component(pipe, &pipe->video_scheduler, "OMX.broadcom.video_scheduler");
 
-  OMX_TIME_CONFIG_ACTIVEREFCLOCKTYPE refClock;
-  OMX_INIT_STRUCTURE(refClock);
-  refClock.eClock = OMX_TIME_RefClockAudio;
-  OERR(OMX_SetConfig(pipe->clock.h, OMX_IndexConfigTimeActiveRefClock, &refClock));
+    /* Setup clock tunnels first */
+    // source component must at least be idle, not loaded
+    omx_send_command_and_wait(&pipe->clock, OMX_CommandStateSet, OMX_StateIdle, NULL);
 
-  omx_init_component(pipe, &pipe->video_scheduler, "OMX.broadcom.video_scheduler");
+    OERR(OMX_SetupTunnel(pipe->clock.h, 80, pipe->video_scheduler.h, 12));
 
-  /* Setup clock tunnels first */
-  omx_send_command_and_wait(&pipe->clock, OMX_CommandStateSet, OMX_StateIdle, NULL);
+    OERR(OMX_SendCommand(pipe->clock.h, OMX_CommandPortEnable, 80, NULL));
+    OERR(OMX_SendCommand(pipe->video_scheduler.h, OMX_CommandPortEnable, 12, NULL));
 
-  OERR(OMX_SetupTunnel(pipe->clock.h, 81, pipe->video_scheduler.h, 12));
+    omx_send_command_and_wait(&pipe->video_scheduler, OMX_CommandStateSet, OMX_StateIdle, NULL);
 
-  OERR(OMX_SendCommand(pipe->clock.h, OMX_CommandPortEnable, 80, NULL));
-  OERR(OMX_SendCommand(pipe->video_scheduler.h, OMX_CommandPortEnable, 12, NULL));
+    omx_send_command_and_wait(&pipe->clock, OMX_CommandStateSet, OMX_StateExecuting, NULL);
 
-  OERR(OMX_SendCommand(pipe->clock.h, OMX_CommandPortEnable, 81, NULL));
+    /* Configure video_decoder */
+    omx_send_command_and_wait(&pipe->video_decode, OMX_CommandStateSet, OMX_StateIdle, NULL);
 
-  omx_send_command_and_wait(&pipe->video_scheduler, OMX_CommandStateSet, OMX_StateIdle, NULL);
+    OMX_INIT_STRUCTURE(format);
+    format.nPortIndex = 130;
+    format.eCompressionFormat = video_codec;
 
-  omx_send_command_and_wait(&pipe->clock, OMX_CommandStateSet, OMX_StateExecuting, NULL);
+    OERR(OMX_SetParameter(pipe->video_decode.h, OMX_IndexParamVideoPortFormat, &format));
 
-  /* Configure video_decoder */
-  omx_send_command_and_wait(&pipe->video_decode, OMX_CommandStateSet, OMX_StateIdle, NULL);
+    /* Enable error concealment for H264 only - without this, HD channels don't work reliably */
+    if (video_codec == OMX_VIDEO_CodingAVC) {
+        OMX_PARAM_BRCMVIDEODECODEERRORCONCEALMENTTYPE ec;
+        OMX_INIT_STRUCTURE(ec);
+        ec.bStartWithValidFrame = OMX_FALSE;
+        OERR(OMX_SetParameter(pipe->video_decode.h, OMX_IndexParamBrcmVideoDecodeErrorConcealment, &ec));
+    }
 
-  OMX_INIT_STRUCTURE(format);
-  format.nPortIndex = 130;
-  format.eCompressionFormat = video_codec;
+    /* Allocate input buffers */
+    omx_alloc_buffers(&pipe->video_decode, 130);
 
-  OERR(OMX_SetParameter(pipe->video_decode.h, OMX_IndexParamVideoPortFormat, &format));
+    /* Enable video decoder input port */
+    omx_send_command_and_wait(&pipe->video_decode, OMX_CommandPortEnable, 130, NULL);
 
-   /* Enable error concealment for H264 only - without this, HD channels don't work reliably */
-  if (video_codec == OMX_VIDEO_CodingAVC) {
-     OMX_PARAM_BRCMVIDEODECODEERRORCONCEALMENTTYPE ec;
-     OMX_INIT_STRUCTURE(ec);
-     ec.bStartWithValidFrame = OMX_FALSE;
-     OERR(OMX_SetParameter(pipe->video_decode.h, OMX_IndexParamBrcmVideoDecodeErrorConcealment, &ec));
-  }
+    /* Change video_decode to OMX_StateExecuting */
+    omx_send_command_and_wait(&pipe->video_decode, OMX_CommandStateSet, OMX_StateExecuting, NULL);
 
-  /* Enable video decoder input port */
-  omx_send_command_and_wait0(&pipe->video_decode, OMX_CommandPortEnable, 130, NULL);
+    /* Enable passing of buffer marks */
+    OERR(OMX_SetParameter(pipe->video_decode.h, OMX_IndexParamPassBufferMarks, &configBoolTrue));
+    OERR(OMX_SetParameter(pipe->video_render.h, OMX_IndexParamPassBufferMarks, &configBoolTrue));
 
-  /* Allocate input buffers */
-  omx_alloc_buffers(&pipe->video_decode, 130);
-
-  /* Wait for input port to be enabled */
-  omx_send_command_and_wait1(&pipe->video_decode, OMX_CommandPortEnable, 130, NULL);
-
-  /* Change video_decode to OMX_StateExecuting */
-  omx_send_command_and_wait(&pipe->video_decode, OMX_CommandStateSet, OMX_StateExecuting, NULL);
-
-  /* Enable passing of buffer marks */
-  OERR(OMX_SetParameter(pipe->video_decode.h, OMX_IndexParamPassBufferMarks, &configBoolTrue));
-  OERR(OMX_SetParameter(pipe->video_render.h, OMX_IndexParamPassBufferMarks, &configBoolTrue));
-
-  return OMX_ErrorNone;
+    return OMX_ErrorNone;
 }
