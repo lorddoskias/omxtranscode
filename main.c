@@ -13,6 +13,10 @@
 #include "include/bcm_host.h"
 #include "include/IL/OMX_Core.h"
 #include "include/libavformat/avformat.h"
+#include "video_queue.h"
+
+/* Data types */
+
 
 static
 void
@@ -129,12 +133,35 @@ int main(int argc, char **argv) {
     pthread_t demux_tid = 0;
     int status;
     
+    struct component_t decoder; 
+    struct packet_t packet1;
+    struct packet_t packet2;
+    
+    packet1.packetlength = 1;
+    packet2.packetlength = 2;
+    
+    codec_queue_init(&decoder);
+    
+    codec_queue_add_item(&decoder, &packet1);
+    codec_queue_add_item(&decoder, &packet2);
+    
+    if(list_empty(&decoder.queue)) { printf("list is empty when it should not\n"); }
+    
+    struct packet_t *p1 = codec_queue_get_next_item(&decoder);
+    struct packet_t *p2 = codec_queue_get_next_item(&decoder);
+    if(p1->packetlength == 1) { printf("after first deque we got 1\n") ; }
+    if(p2->packetlength == 2) { printf("after second deque we got 2\n") ; }
+    
+    if(list_empty(&decoder.queue)) { printf("list is empty when it should\n"); }
+    
+   /* 
     status = pthread_create(&demux_tid, NULL, demux_thread, argv[1]);
     if(status) {
         printf("Error creating thread : %d\n", status);
     }
     
     pthread_exit(NULL);
+     */
 }
 
 
