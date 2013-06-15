@@ -62,7 +62,25 @@ extern "C" {
         pthread_cond_t eos_cv;
     };
 
+    struct omx_pipeline_t {
+        struct omx_component_t video_decode;
+        struct omx_component_t video_scheduler;
+        struct omx_component_t video_render;
+        struct omx_component_t clock;
 
+        pthread_mutex_t omx_active_mutex;
+        int omx_active;
+        pthread_cond_t omx_active_cv;
+    };
+
+    
+OMX_ERRORTYPE omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* component, char* compname);
+OMX_ERRORTYPE omx_setup_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec, char* audio_dest, int is_hd);
+OMX_ERRORTYPE omx_send_command_and_wait(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData);
+OMX_ERRORTYPE omx_send_command_and_wait0(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData);
+OMX_ERRORTYPE omx_send_command_and_wait1(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData);   
+void omx_alloc_buffers(struct omx_component_t *component, int port);    
+    
 #ifdef	__cplusplus
 }
 #endif

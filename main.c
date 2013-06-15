@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "include/bcm_host.h"
+#include "include/IL/OMX_Core.h"
 #include "include/libavformat/avformat.h"
 
 static
