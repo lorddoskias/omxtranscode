@@ -1,5 +1,5 @@
 /**
- * will be doing some demuxing stuff here 
+ * demux video and write it to a separate file
  * @param argc
  * @param argv
  * @return 
@@ -10,7 +10,6 @@
 #include <string.h>
 
 #include "include/bcm_host.h"
-#include "libs/ilclient/ilclient.h"
 #include "include/libavformat/avformat.h"
 
 static
