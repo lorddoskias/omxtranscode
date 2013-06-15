@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "include/bcm_host.h"
 #include "include/IL/OMX_Core.h"
@@ -87,16 +88,16 @@ extract_video_stream(AVFormatContext *fmt_ctx, AVStream *video_stream) {
     fclose(output_file);
 }
 
-int main(int argc, char **argv) {
-
+void *demux_thread(void *ctx) {
     AVFormatContext *fmt_ctx = NULL;
     AVCodecContext *video_codec_ctx = NULL;
     AVCodecContext *audio_codec_ctx = NULL;
     AVStream *video_stream = NULL;
     AVStream *audio_stream = NULL;
-    
+
+
     av_register_all();
-    if (avformat_open_input(&fmt_ctx, argv[1], NULL, NULL) < 0) {
+    if (avformat_open_input(&fmt_ctx, ctx, NULL, NULL) < 0) {
         abort();
     }
 
@@ -104,20 +105,36 @@ int main(int argc, char **argv) {
         abort();
     }
 
-    av_dump_format(fmt_ctx, 0, argv[1], 0);
+ //   av_dump_format(fmt_ctx, 0, ctx, 0);
 
     if (init_streams_and_codecs(fmt_ctx, &video_stream, &audio_stream, &video_codec_ctx, &audio_codec_ctx) < 0) {
         printf("Error identifying video/audio streams\n");
-        return -1;
+        return NULL;
     }
-    
+
     extract_video_stream(fmt_ctx, video_stream);
-    
+
     //clean up 
     avcodec_close(video_codec_ctx);
     avcodec_close(audio_codec_ctx);
     avformat_close_input(&fmt_ctx);
     
+    return NULL;
+
+}
+
+int main(int argc, char **argv) {
+
+
+    pthread_t demux_tid = 0;
+    int status;
+    
+    status = pthread_create(&demux_tid, NULL, demux_thread, argv[1]);
+    if(status) {
+        printf("Error creating thread : %d\n", status);
+    }
+    
+    pthread_exit(NULL);
 }
 
 
