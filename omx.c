@@ -209,6 +209,8 @@ omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* componen
 
   /* Disable all ports */
   omx_disable_all_ports(component);
+  
+  printf("[DEBUG] Initialised %s done\n", compname);
 
 }
 
@@ -232,7 +234,7 @@ omx_alloc_buffers(struct omx_component_t *component, int port)
 
         buf = vcos_malloc_aligned(portdef.nBufferSize, portdef.nBufferAlignment, "buffer");
 
-        printf("Allocated a buffer of %u bytes\n", portdef.nBufferSize);
+        //printf("Allocated a buffer of %u bytes\n", portdef.nBufferSize);
 
         OERR(OMX_UseBuffer(component->h, end, port, NULL, portdef.nBufferSize, buf));
 
@@ -240,6 +242,8 @@ omx_alloc_buffers(struct omx_component_t *component, int port)
     }
 
     component->buffers = list;
+    
+    printf("[DEBUG] Allocating buffers for %s done\n", component->name);
 }
 
 /* Return the next free buffer, or NULL if none are free */
@@ -359,9 +363,10 @@ omx_setup_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec
   omx_send_command_and_wait(&pipe->video_decode, OMX_CommandStateSet, OMX_StateExecuting, NULL);
 
   /* Enable passing of buffer marks */
-  OERR(OMX_SetParameter(pipe->video_decode.h, OMX_IndexParamPassBufferMarks, &configBoolTrue));
-  OERR(OMX_SetParameter(pipe->video_render.h, OMX_IndexParamPassBufferMarks, &configBoolTrue));
+  //OERR(OMX_SetParameter(pipe->video_decode.h, OMX_IndexParamPassBufferMarks, &configBoolTrue));
+  //OERR(OMX_SetParameter(pipe->video_render.h, OMX_IndexParamPassBufferMarks, &configBoolTrue));
 
+  printf("[DEBUG] pipeline init done\n");
   return OMX_ErrorNone;
 }
 
@@ -387,14 +392,7 @@ omx_teardown_pipeline(struct omx_pipeline_t* pipe)
    OMX_BUFFERHEADERTYPE *buf;
    int i=1;
 
-   /* Indicate end of video stream */
-   buf = get_next_buffer(&pipe->video_decode);
-
-   buf->nFilledLen = 0;
-   buf->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN | OMX_BUFFERFLAG_EOS;
-   
-   OERR(OMX_EmptyThisBuffer(pipe->video_decode.h, buf));
-
+   printf("[DEBUG] beginning pipeline teardown\n");
    /* NOTE: Three events are sent after the previous command:
 
 [EVENT] Got an event of type 4 on video_decode 0x426a10 (d1: 83, d2 1)

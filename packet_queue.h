@@ -35,8 +35,7 @@ struct packet_queue_t
   struct list_head queue;
   int queue_count;
   int first_packet;
-  pthread_rwlock_t queue_finished_rwlock;
-  int queue_finished;
+  volatile int queue_finished;
 };
 
 void packet_queue_init(struct packet_queue_t* component);

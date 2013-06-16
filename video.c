@@ -180,16 +180,10 @@ video_thread(void *ctx) {
     struct decode_ctx_t *decoder_ctx = (struct decode_ctx_t *) ctx;
     struct packet_t *current_packet;
     int bytes_left;
-    int is_finished;
     uint8_t *p; /* points to currently copied buffer */
 
-
-    pthread_rwlock_rdlock(&decoder_ctx->video_queue->queue_finished_rwlock);
-    is_finished = decoder_ctx->video_queue->queue_finished;
-    pthread_rwlock_unlock(&decoder_ctx->video_queue->queue_finished_rwlock);
-
     /* main loop that will poll packets and render*/
-    while (decoder_ctx->video_queue->queue_count != 0 && !is_finished) {
+    while (decoder_ctx->video_queue->queue_count != 0 || decoder_ctx->video_queue->queue_finished != 1) {
         current_packet = packet_queue_get_next_item(decoder_ctx->video_queue);
         p = current_packet->data;
         bytes_left = current_packet->data_length;
@@ -215,10 +209,6 @@ video_thread(void *ctx) {
                 decoder_ctx->first_packet = 0;
             } else {
                 buf->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN;
-            }
-
-            if (bytes_left == 0) {
-                buf->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
             }
 
             if (decoder_ctx->pipeline.video_decode.port_settings_changed == 1) {
@@ -250,9 +240,14 @@ video_thread(void *ctx) {
         packet_queue_free_item(current_packet);
         current_packet = NULL;
 
-        pthread_rwlock_rdlock(&decoder_ctx->video_queue->queue_finished_rwlock);
-        is_finished = decoder_ctx->video_queue->queue_finished;
-        pthread_rwlock_unlock(&decoder_ctx->video_queue->queue_finished_rwlock);
+        /* Indicate end of video stream */
+        buf = get_next_buffer(&decoder_ctx->pipeline.video_decode);
+
+        buf->nFilledLen = 0;
+        buf->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN | OMX_BUFFERFLAG_EOS;
+
+        OERR(OMX_EmptyThisBuffer(decoder_ctx->pipeline.video_decode.h, buf));
+        
     }
 
     omx_teardown_pipeline(&decoder_ctx->pipeline);

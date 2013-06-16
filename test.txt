@@ -1,0 +1,52 @@
+[EVENT] OMX.broadcom.video_decode 0x1488328 has completed the last command (2).
+[EVENT] OMX.broadcom.video_decode 0x1488328 has completed the last command (2).
+[EVENT] OMX.broadcom.video_render 0x1492448 has completed the last command (2).
+[EVENT] OMX.broadcom.clock 0x1492508 has completed the last command (2).
+[EVENT] OMX.broadcom.clock 0x1492508 has completed the last command (2).
+[EVENT] OMX.broadcom.clock 0x1492508 has completed the last command (2).
+[EVENT] OMX.broadcom.clock 0x1492508 has completed the last command (2).
+[EVENT] OMX.broadcom.clock 0x1492508 has completed the last command (2).
+[EVENT] OMX.broadcom.clock 0x1492508 has completed the last command (2).
+[EVENT] OMX.broadcom.video_scheduler 0x1492628 has completed the last command (2).
+[EVENT] OMX.broadcom.video_scheduler 0x1492628 has completed the last command (2).
+[EVENT] OMX.broadcom.video_scheduler 0x1492628 has completed the last command (2).
+[EVENT] OMX.broadcom.clock 0x1492508 has completed the last command (0).
+[EVENT] OMX.broadcom.video_scheduler 0x1492628 has completed the last command (3).
+[EVENT] OMX.broadcom.clock 0x1492508 has completed the last command (3).
+[EVENT] OMX.broadcom.video_scheduler 0x1492628 has completed the last command (0).
+[EVENT] OMX.broadcom.clock 0x1492508 has completed the last command (0).
+[EVENT] OMX.broadcom.video_decode 0x1488328 has completed the last command (0).
+[EVENT] OMX.broadcom.video_decode 0x1488328 has completed the last command (3).
+[EVENT] OMX.broadcom.video_decode 0x1488328 has completed the last command (0).
+[vcodec] omx_teardown pipeline 2b
+[EVENT] OMX.broadcom.video_decode 0x1488328 has completed the last command (1).
+[vcodec] omx_teardown pipeline 3
+[EVENT] OMX.broadcom.video_decode 0x1488328 has completed the last command (1).
+[EVENT] OMX.broadcom.video_scheduler 0x1492628 has completed the last command (1).
+[vcodec] omx_teardown pipeline 4
+[EVENT] OMX.broadcom.video_scheduler 0x1492628 has completed the last command (1).
+[EVENT] OMX.broadcom.video_render 0x1492448 has completed the last command (1).
+[EVENT] OMX.broadcom.clock 0x1492508 has completed the last command (1).
+[EVENT] OMX.broadcom.video_scheduler 0x1492628 has completed the last command (1).
+[vcodec] omx_teardown pipeline 5
+[EVENT] OMX.broadcom.video_scheduler 0x1492628 has errored: 80001012
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
+Allocated a buffer of 81920 bytes
