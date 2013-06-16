@@ -1,7 +1,9 @@
 #include <stdlib.h>
 
 #include "include/libavformat/avformat.h"
+#include "include/libavutil/mathematics.h"
 #include "demux.h"
+#include "packet_queue.h"
 
 static
 int
@@ -30,22 +32,35 @@ init_streams_and_codecs(AVFormatContext *fmt_ctx, AVStream **video_stream, AVStr
 
 static
 void
-extract_video_stream(AVFormatContext *fmt_ctx, AVStream *video_stream, const char *output_file_name) {
+extract_video_stream(AVFormatContext *fmt_ctx, AVStream *video_stream, struct av_demux_t *ctx) {
     AVPacket packet;
     FILE *output_file = NULL;
-
+    AVRational omx_timebase = {1, 1000000};
+    struct packet_t *video_packet;
+   
     av_init_packet(&packet);
     packet.data = NULL;
     packet.size = 0;
 
-    output_file = fopen(output_file_name, "w+b");
+    output_file = fopen(ctx->output_filename, "w+b");
 
     //start reading frames 
     while (av_read_frame(fmt_ctx, &packet) >= 0) {
 
         if (packet.stream_index == video_stream->index) {
+            
+            video_packet = malloc(sizeof(*video_packet));
+            //taken from pidvbip - rescaling the pts, dunno if correct
+            video_packet->PTS = av_rescale_q(packet.pts, video_stream->time_base, omx_timebase);
+            video_packet->DTS = -1;
+            video_packet->data_length = packet.size;
+            video_packet->data = malloc(packet.size);
+            memcpy(video_packet->data, packet.data)
             //we are dealing with video frames
-            fwrite(packet.data, sizeof (*packet.data), packet.size, output_file);
+            fwrite(video_packet->data, sizeof (*video_packet->data), video_packet->data_length, output_file);
+            
+            while (ctx->video_queue->queue_count > 100) { usleep(100000); } // FIXME
+            packet_queue_add_item(ctx->video_queue, video_packet);
         } 
         
         av_free_packet(&packet);

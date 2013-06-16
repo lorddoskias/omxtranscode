@@ -46,12 +46,12 @@ int main(int argc, char **argv) {
 
     pthread_t demux_tid = 0;
     int status;
-    struct packet_queue_t *decoder; 
+    struct packet_queue_t *video_queue; 
     struct av_demux_t *demux;
     
-    demux = malloc(sizeof(struct av_demux_t));
-    decoder = malloc(sizeof(struct packet_queue_t));
-    
+    demux = malloc(sizeof(*demux));
+    video_queue = malloc(sizeof(*video_queue));
+    packet_queue_init(video_queue);
     //copy the input file name
     demux->input_filename = malloc(strlen(argv[1]) + 1);
     memcpy(demux->input_filename, argv[1], strlen(argv[1]) + 1);
@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
     demux->output_filename = malloc(strlen(argv[2]) + 1);
     memcpy(demux->output_filename, argv[2], strlen(argv[2]) + 1);
     
-    demux->queue = decoder;
+    demux->video_queue = video_queue;
     
     status = pthread_create(&demux_tid, NULL, demux_thread, demux);
     if(status) {

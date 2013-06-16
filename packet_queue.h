@@ -19,9 +19,8 @@ extern "C" {
 
 struct packet_t
 {
-  unsigned char* buf; /* The buffer to be freed after use */
-  unsigned char* packet; /* Pointer to the actual video data (within buf) */
-  int packetlength; /* Number of bytes in packet */
+  uint8_t *data; /* The buffer to be freed after use */
+  int data_length; /* Number of bytes in packet */
   int frametype;
   struct list_head list;
   int64_t PTS;
