@@ -208,6 +208,7 @@ video_thread(void *ctx) {
                 buf->nFlags |= OMX_BUFFERFLAG_STARTTIME;
                 decoder_ctx->first_packet = 0;
             } else {
+                //taken from ilclient
                 buf->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN;
             }
 
@@ -239,16 +240,16 @@ video_thread(void *ctx) {
 
         packet_queue_free_item(current_packet);
         current_packet = NULL;
-
-        /* Indicate end of video stream */
-        buf = get_next_buffer(&decoder_ctx->pipeline.video_decode);
-
-        buf->nFilledLen = 0;
-        buf->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN | OMX_BUFFERFLAG_EOS;
-
-        OERR(OMX_EmptyThisBuffer(decoder_ctx->pipeline.video_decode.h, buf));
-        
     }
+
+    printf("Finishing stream \n");
+    /* Indicate end of video stream */
+    buf = get_next_buffer(&decoder_ctx->pipeline.video_decode);
+
+    buf->nFilledLen = 0;
+    buf->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN | OMX_BUFFERFLAG_EOS;
+
+    OERR(OMX_EmptyThisBuffer(decoder_ctx->pipeline.video_decode.h, buf));
 
     omx_teardown_pipeline(&decoder_ctx->pipeline);
 }
