@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
-#include "video_queue.h"
+#include "packet_queue.h"
 
-void codec_queue_init(struct component_t* component) 
+void packet_queue_init(struct packet_queue_t* component) 
 {
     INIT_LIST_HEAD(&component->queue);
     component->queue_count = 0;
@@ -13,7 +13,7 @@ void codec_queue_init(struct component_t* component)
     pthread_cond_init(&component->queue_count_cv, NULL);
 }
 
-void codec_queue_add_item(struct component_t* component, struct packet_t* packet) 
+void packet_queue_add_item(struct packet_queue_t* component, struct packet_t* packet) 
 {
     
     if (packet == NULL) {
@@ -35,7 +35,7 @@ void codec_queue_add_item(struct component_t* component, struct packet_t* packet
     pthread_mutex_unlock(&component->queue_mutex);
 }
 
-void codec_queue_free_item(struct packet_t* item) 
+void packet_queue_free_item(struct packet_t* item) 
 {
     if (item == NULL)
         return;
@@ -47,7 +47,7 @@ void codec_queue_free_item(struct packet_t* item)
     free(item);
 }
 
-struct packet_t* codec_queue_get_next_item(struct component_t* component) 
+struct packet_t* packet_queue_get_next_item(struct packet_queue_t* component) 
 {
     struct packet_t *item;
     pthread_mutex_lock(&component->queue_mutex);
@@ -66,7 +66,7 @@ struct packet_t* codec_queue_get_next_item(struct component_t* component)
 }
 
 void 
-codec_flush_queue(struct component_t* component) {
+packet_flush_queue(struct packet_queue_t* component) {
     
     /* Empty the queue */
     pthread_mutex_lock(&component->queue_mutex);
@@ -76,7 +76,7 @@ codec_flush_queue(struct component_t* component) {
     list_for_each_safe(current_entry, n, &component->queue) {
         current_packet = list_entry(current_entry, struct packet_t, list);
         list_del(current_entry);
-        codec_queue_free_item(current_packet);
+        packet_queue_free_item(current_packet);
     }
 
 

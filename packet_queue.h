@@ -28,7 +28,7 @@ struct packet_t
   int64_t DTS;
 };
 
-struct component_t
+struct packet_queue_t
 {
   pthread_t thread;
   pthread_mutex_t queue_mutex;
@@ -38,11 +38,11 @@ struct component_t
   int first_packet;
 };
 
-void codec_queue_init(struct component_t* component);
-void codec_queue_add_item(struct component_t* component, struct packet_t* packet);
-void codec_queue_free_item(struct packet_t* item);
-struct packet_t* codec_queue_get_next_item(struct component_t* component);
-void codec_flush_queue(struct component_t* component);
+void packet_queue_init(struct packet_queue_t* component);
+void packet_queue_add_item(struct packet_queue_t* component, struct packet_t* packet);
+void packet_queue_free_item(struct packet_t* item);
+struct packet_t* packet_queue_get_next_item(struct packet_queue_t* component);
+void packet_queue_flush(struct packet_queue_t* component);
 
 
 #ifdef	__cplusplus
