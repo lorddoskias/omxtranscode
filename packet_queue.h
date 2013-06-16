@@ -9,6 +9,7 @@
 #define	VIDEO_QUEUE_H
 
 #include <stdint.h>
+#include <pthread.h>
 #include "list.h"
 
 
