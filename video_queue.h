@@ -38,11 +38,11 @@ struct component_t
   int first_packet;
 };
 
-void codec_queue_init(struct component_t* codec);
-void codec_queue_add_item(struct component_t* codec, struct packet_t* packet);
-void codec_queue_free_item(struct component_t* codec, struct packet_t* item);
-struct packet_t* codec_queue_get_next_item(struct component_t* codec);
-void codec_flush_queue(struct component_t* codec);
+void codec_queue_init(struct component_t* component);
+void codec_queue_add_item(struct component_t* component, struct packet_t* packet);
+void codec_queue_free_item(struct packet_t* item);
+struct packet_t* codec_queue_get_next_item(struct component_t* component);
+void codec_flush_queue(struct component_t* component);
 
 
 #ifdef	__cplusplus

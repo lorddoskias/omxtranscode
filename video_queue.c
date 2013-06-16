@@ -4,16 +4,16 @@
 #include <pthread.h>
 #include "video_queue.h"
 
-void codec_queue_init(struct component_t* codec) 
+void codec_queue_init(struct component_t* component) 
 {
-    INIT_LIST_HEAD(&codec->queue);
-    codec->queue_count = 0;
+    INIT_LIST_HEAD(&component->queue);
+    component->queue_count = 0;
 
-    pthread_mutex_init(&codec->queue_mutex, NULL);
-    pthread_cond_init(&codec->queue_count_cv, NULL);
+    pthread_mutex_init(&component->queue_mutex, NULL);
+    pthread_cond_init(&component->queue_count_cv, NULL);
 }
 
-void codec_queue_add_item(struct component_t* codec, struct packet_t* packet) 
+void codec_queue_add_item(struct component_t* component, struct packet_t* packet) 
 {
     
     if (packet == NULL) {
@@ -21,44 +21,66 @@ void codec_queue_add_item(struct component_t* codec, struct packet_t* packet)
         return;
     }
 
-    pthread_mutex_lock(&codec->queue_mutex);
+    pthread_mutex_lock(&component->queue_mutex);
 
-    if (list_empty(&codec->queue)) {
-        list_add_tail(&packet->list, &codec->queue);
-        pthread_cond_signal(&codec->queue_count_cv);
+    if (list_empty(&component->queue)) {
+        list_add_tail(&packet->list, &component->queue);
+        pthread_cond_signal(&component->queue_count_cv);
     } else {
-        list_add_tail(&packet->list, &codec->queue);
+        list_add_tail(&packet->list, &component->queue);
     }
 
-    codec->queue_count++;
+    component->queue_count++;
 
-    pthread_mutex_unlock(&codec->queue_mutex);
+    pthread_mutex_unlock(&component->queue_mutex);
 }
 
-
-void codec_queue_free_item(struct component_t* codec,struct packet_t* item)
+void codec_queue_free_item(struct packet_t* item) 
 {
-  if (item == NULL)
-    return;
+    if (item == NULL)
+        return;
+    
+    if (item->buf) {
+        free(item->buf);
+    }
 
-    free(item->buf);
     free(item);
 }
 
-struct packet_t* codec_queue_get_next_item(struct component_t* codec) 
+struct packet_t* codec_queue_get_next_item(struct component_t* component) 
 {
     struct packet_t *item;
-    pthread_mutex_lock(&codec->queue_mutex);
+    pthread_mutex_lock(&component->queue_mutex);
 
-    while (list_empty(&codec->queue))
-        pthread_cond_wait(&codec->queue_count_cv, &codec->queue_mutex);
+    while (list_empty(&component->queue))
+        pthread_cond_wait(&component->queue_count_cv, &component->queue_mutex);
 
-    item = container_of(codec->queue.next,struct packet_t, list);
+    item = list_entry(component->queue.next,struct packet_t, list);
 
-    list_del(codec->queue.next);
-    codec->queue_count--;
+    list_del(component->queue.next);
+    component->queue_count--;
 
-    pthread_mutex_unlock(&codec->queue_mutex);
+    pthread_mutex_unlock(&component->queue_mutex);
 
     return item;
+}
+
+void 
+codec_flush_queue(struct component_t* component) {
+    
+    /* Empty the queue */
+    pthread_mutex_lock(&component->queue_mutex);
+    struct list_head *current_entry, *n;
+    struct packet_t *current_packet;
+
+    list_for_each_safe(current_entry, n, &component->queue) {
+        current_packet = list_entry(current_entry, struct packet_t, list);
+        list_del(current_entry);
+        codec_queue_free_item(current_packet);
+    }
+
+
+    component->queue_count = 0;
+
+    pthread_mutex_unlock(&component->queue_mutex);
 }
