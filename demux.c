@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "include/libavformat/avformat.h"
 #include "include/libavutil/mathematics.h"
@@ -55,10 +56,14 @@ extract_video_stream(AVFormatContext *fmt_ctx, AVStream *video_stream, struct av
             video_packet->DTS = -1;
             video_packet->data_length = packet.size;
             video_packet->data = malloc(packet.size);
-            memcpy(video_packet->data, packet.data)
+            memcpy(video_packet->data, packet.data, packet.size);
             //we are dealing with video frames
             fwrite(video_packet->data, sizeof (*video_packet->data), video_packet->data_length, output_file);
             
+            /* The best thing will be do actually add each and every packet into a 
+             * private list in this loop and only when the duration in the queue is 
+             * below a minimum signal a cond_var to continue demuxing. 
+             */
             while (ctx->video_queue->queue_count > 100) { usleep(100000); } // FIXME
             packet_queue_add_item(ctx->video_queue, video_packet);
         } 
@@ -71,17 +76,17 @@ extract_video_stream(AVFormatContext *fmt_ctx, AVStream *video_stream, struct av
 
 void 
 *demux_thread(void *ctx) {
-    struct av_demux_t *demux_ct = (struct av_demux_t *) ctx;
+    
+    struct av_demux_t *demux_ctx = (struct av_demux_t *) ctx;
     AVFormatContext *fmt_ctx = NULL;
     AVCodecContext *video_codec_ctx = NULL;
     AVCodecContext *audio_codec_ctx = NULL;
     AVStream *video_stream = NULL;
     AVStream *audio_stream = NULL;
 
-
     av_register_all();
-    if (avformat_open_input(&fmt_ctx, demux_ct->input_filename, NULL, NULL) < 0) {
-        printf("Error opening input file: %s\n", demux_ct->input_filename);
+    if (avformat_open_input(&fmt_ctx, demux_ctx->input_filename, NULL, NULL) < 0) {
+        printf("Error opening input file: %s\n", demux_ctx->input_filename);
         abort();
     }
 
@@ -97,7 +102,7 @@ void
         return NULL;
     }
 
-    extract_video_stream(fmt_ctx, video_stream, demux_ct->output_filename);
+    extract_video_stream(fmt_ctx, video_stream, demux_ctx);
 
     //clean up 
     avcodec_close(video_codec_ctx);

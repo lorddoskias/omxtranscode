@@ -13,6 +13,8 @@
 #include "include/IL/OMX_Core.h"
 #include "packet_queue.h"
 #include "demux.h"
+#include "omx.h"
+#include "video.h"
 
 /* Data types */
 
@@ -40,35 +42,83 @@ query_components() {
     OMX_Deinit();
 }
 
+struct av_demux_t *
+init_demux(const char *input_file, const char *output_file) {
+    struct av_demux_t *demux_ctx;
+    
+    demux_ctx = malloc(sizeof(*demux_ctx));
+    
+    //copy the input file name
+    demux_ctx->input_filename = malloc(strlen(input_file) + 1);
+    memcpy(demux_ctx->input_filename, input_file, strlen(input_file) + 1);
+    
+     //copy the output file name
+    demux_ctx->output_filename = malloc(strlen(output_file) + 1);
+    memcpy(demux_ctx->output_filename, output_file, strlen(output_file) + 1);
+    
+    demux_ctx->video_queue = malloc(sizeof(struct packet_queue_t));
+    
+    return demux_ctx;
+}
+
+struct decode_ctx_t *
+init_decode(struct av_demux_t *demux_ctx) {
+    struct decode_ctx_t *decoder_ctx;
+
+    decoder_ctx = malloc(sizeof (*decoder_ctx));
+    omx_setup_pipeline(&decoder_ctx->pipeline, OMX_VIDEO_CodingAVC);
+
+    decoder_ctx->video_queue = demux_ctx->video_queue;
+    
+    return decoder_ctx;
+}
+
+
 
 int main(int argc, char **argv) {
 
 
     pthread_t demux_tid = 0;
+    pthread_t decoder_tid = 0;
+    pthread_attr_t attr;
     int status;
-    struct packet_queue_t *video_queue; 
-    struct av_demux_t *demux;
+    struct av_demux_t *demux_ctx;
+    struct decode_ctx_t *decoder_ctx;
     
-    demux = malloc(sizeof(*demux));
-    video_queue = malloc(sizeof(*video_queue));
-    packet_queue_init(video_queue);
-    //copy the input file name
-    demux->input_filename = malloc(strlen(argv[1]) + 1);
-    memcpy(demux->input_filename, argv[1], strlen(argv[1]) + 1);
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
     
-     //copy the output file name
-    demux->output_filename = malloc(strlen(argv[2]) + 1);
-    memcpy(demux->output_filename, argv[2], strlen(argv[2]) + 1);
+    bcm_host_init();
+    OERR(OMX_Init());
     
-    demux->video_queue = video_queue;
-    
-    status = pthread_create(&demux_tid, NULL, demux_thread, demux);
+    demux_ctx = init_demux(argv[1], argv[2]);
+    decoder_ctx = init_decode(demux_ctx);
+
+    /* start the thread that will pump packets in the queue */
+    status = pthread_create(&demux_tid, &attr, demux_thread, demux_ctx);
     if(status) {
-        printf("Error creating thread : %d\n", status);
+        printf("Error creating demux thread : %d\n", status);
     }
+
+    /* start the thread that will consume packets from the queue */
+    status = pthread_create(&decoder_tid, &attr, video_thread, decoder_ctx);
+    if (status) {
+        printf("Error creating decode thread : %d\n", status);
+    }
+    /* start the decoding pipeline that will */
     
-    pthread_exit(NULL);
-     
+    
+    /* block until the demux and decoder are finished finished */
+    pthread_join(demux_tid, NULL);
+    pthread_join(decoder_tid, NULL);
+    
+    printf("the other two threads have terminating, i'm dying as well\n");
+    /* do any cleanup */
+    OERR(OMX_Deinit());
+    free(demux_ctx->input_filename);
+    free(demux_ctx->output_filename);
+    free(demux_ctx->video_queue);
+    free(demux_ctx); 
 }
 
 
