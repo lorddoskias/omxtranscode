@@ -4,6 +4,9 @@
 
 #include "bcm_host.h"
 #include "ilclient.h"
+#include "packet_queue.h"
+#include "video.h"
+#include "omx.h"
 
 static int video_decode_test(char *filename)
 {
@@ -181,6 +184,81 @@ static int video_decode_test(char *filename)
    return status;
 }
 
+void *
+video_thread(void *ctx) {
+    
+    OMX_BUFFERHEADERTYPE *buf; /* buffer taken from the OMX decoder */
+    struct decode_ctx_t *decoder_ctx = (struct decode_ctx_t *) ctx;
+    struct packet_t *current_packet;
+    int bytes_left;
+    uint8_t *p; /* points to currently copied buffer */
+    
+    
+    /* main loop that will poll packets and render*/
+    while (decoder_ctx->video_queue->queue_count != 0 && !decoder_ctx->video_queue->queue_finished) {
+        current_packet = packet_queue_get_next_item(decoder_ctx->video_queue);
+        p = current_packet->data;
+        bytes_left = current_packet->data_length;
+        
+        while (bytes_left > 0) {
+
+            fprintf(stderr, "OMX buffers: v: %02d/20, vcodec queue: %4d\r", omx_get_free_buffer_count(&decoder_ctx->pipeline.video_decode), decoder_ctx->video_queue->queue_count);
+            buf = get_next_buffer(&decoder_ctx->pipeline.video_decode); /* This will block if there are no empty buffers */
+
+            /* copy at most the length of the OMX buf*/
+            int copy_length = OMX_MIN(current_packet->data_length, buf->nAllocLen);
+
+            memcpy(buf->pBuffer, current_packet->data, copy_length);
+            p += copy_length;
+            bytes_left -= copy_length;
+
+            buf->nFilledLen = copy_length;
+            buf->nFlags = 0;
+
+            if (decoder_ctx->first_packet) {
+                printf("First video packet received\n");
+                buf->nFlags |= OMX_BUFFERFLAG_STARTTIME;
+                decoder_ctx->first_packet = 0;
+            } else { 
+                buf->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN;
+            }
+
+            if (bytes_left == 0) {
+                buf->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
+            }
+
+            if (decoder_ctx->pipeline.video_decode.port_settings_changed == 1) {
+                decoder_ctx->pipeline.video_decode.port_settings_changed = 0;
+                
+                fprintf(stderr, "video_decode port_settings_changed = 1\n");
+                decoder_ctx->pipeline.video_render.h;
+                OERR(OMX_SetupTunnel(decoder_ctx->pipeline.video_decode.h, 131, decoder_ctx->pipeline.video_scheduler.h, 10));
+                omx_send_command_and_wait(&decoder_ctx->pipeline.video_decode, OMX_CommandPortEnable, 131, NULL);
+
+                omx_send_command_and_wait(&decoder_ctx->pipeline.video_scheduler, OMX_CommandPortEnable, 10, NULL);
+                omx_send_command_and_wait(&decoder_ctx->pipeline.video_scheduler, OMX_CommandStateSet, OMX_StateExecuting, NULL);
+                omx_send_command_and_wait(&decoder_ctx->pipeline.video_render, OMX_CommandStateSet, OMX_StateIdle, NULL);
+            }
+
+            if (decoder_ctx->pipeline.video_scheduler.port_settings_changed == 1) {
+                decoder_ctx->pipeline.video_scheduler.port_settings_changed = 0;
+                fprintf(stderr, "video_scheduler port_settings_changed = 1\n");
+
+                OERR(OMX_SetupTunnel(decoder_ctx->pipeline.video_scheduler.h, 11, decoder_ctx->pipeline.video_render.h, 90));
+                omx_send_command_and_wait(&decoder_ctx->pipeline.video_scheduler, OMX_CommandPortEnable, 11, NULL);
+                omx_send_command_and_wait(&decoder_ctx->pipeline.video_render, OMX_CommandPortEnable, 90, NULL);
+                omx_send_command_and_wait(&decoder_ctx->pipeline.video_render, OMX_CommandStateSet, OMX_StateExecuting, NULL);
+            }
+
+            OERR(OMX_EmptyThisBuffer(decoder_ctx->pipeline.video_decode.h, buf));
+        }
+        
+        packet_queue_free_item(current_packet);
+        current_packet = NULL;
+    }
+
+    //main code will come here
+}
 /*
 int main (int argc, char **argv)
 {

@@ -30,12 +30,12 @@ struct packet_t
 
 struct packet_queue_t
 {
-  pthread_t thread;
   pthread_mutex_t queue_mutex;
   pthread_cond_t queue_count_cv;
   struct list_head queue;
   int queue_count;
   int first_packet;
+  int queue_finished;
 };
 
 void packet_queue_init(struct packet_queue_t* component);

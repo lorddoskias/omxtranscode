@@ -71,6 +71,7 @@ extract_video_stream(AVFormatContext *fmt_ctx, AVStream *video_stream, struct av
         av_free_packet(&packet);
     }
     
+    ctx->video_queue->queue_finished = 1;
     fclose(output_file);
 }
 

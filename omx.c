@@ -9,6 +9,57 @@
 #include "omx.h"
 
 
+/**
+ * Populates the omx_cmd_t struct inside the component struct
+ * 
+ * @param component
+ * @param Cmd
+ * @param nParam
+ * @param pCmdData
+ * @return 
+ */
+static
+OMX_ERRORTYPE
+omx_send_command_and_wait0(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData) 
+{
+    pthread_mutex_lock(&component->cmd_queue_mutex);
+    component->cmd.hComponent = component->h;
+    component->cmd.Cmd = Cmd;
+    component->cmd.nParam = nParam;
+    component->cmd.pCmdData = pCmdData;
+    pthread_mutex_unlock(&component->cmd_queue_mutex);
+
+    OMX_SendCommand(component->h, Cmd, nParam, pCmdData);
+}
+/**
+ * Blocks until the event handler signals the cond variable.
+ * @param component
+ * @param Cmd
+ * @param nParam
+ * @param pCmdData
+ * @return 
+ */
+static
+OMX_ERRORTYPE
+omx_send_command_and_wait1(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData) 
+{
+    pthread_mutex_lock(&component->cmd_queue_mutex);
+    while (component->cmd.hComponent) {
+        /* pthread_cond_wait releases the mutex (which must be locked) and blocks on the condition variable */
+        pthread_cond_wait(&component->cmd_queue_count_cv, &component->cmd_queue_mutex);
+    }
+    pthread_mutex_unlock(&component->cmd_queue_mutex);
+
+}
+
+OMX_ERRORTYPE 
+omx_send_command_and_wait(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData)
+{
+  omx_send_command_and_wait0(component,Cmd,nParam,pCmdData);
+  omx_send_command_and_wait1(component,Cmd,nParam,pCmdData);
+}
+
+
 /* The event handler is called from the OMX component thread */
 static 
 OMX_ERRORTYPE 
@@ -160,57 +211,6 @@ omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* componen
   omx_disable_all_ports(component);
 
 }
-
-/**
- * Populates the omx_cmd_t struct inside the component struct
- * 
- * @param component
- * @param Cmd
- * @param nParam
- * @param pCmdData
- * @return 
- */
-static
-OMX_ERRORTYPE
-omx_send_command_and_wait0(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData) 
-{
-    pthread_mutex_lock(&component->cmd_queue_mutex);
-    component->cmd.hComponent = component->h;
-    component->cmd.Cmd = Cmd;
-    component->cmd.nParam = nParam;
-    component->cmd.pCmdData = pCmdData;
-    pthread_mutex_unlock(&component->cmd_queue_mutex);
-
-    OMX_SendCommand(component->h, Cmd, nParam, pCmdData);
-}
-/**
- * Blocks until the event handler signals the cond variable.
- * @param component
- * @param Cmd
- * @param nParam
- * @param pCmdData
- * @return 
- */
-static
-OMX_ERRORTYPE
-omx_send_command_and_wait1(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData) 
-{
-    pthread_mutex_lock(&component->cmd_queue_mutex);
-    while (component->cmd.hComponent) {
-        /* pthread_cond_wait releases the mutex (which must be locked) and blocks on the condition variable */
-        pthread_cond_wait(&component->cmd_queue_count_cv, &component->cmd_queue_mutex);
-    }
-    pthread_mutex_unlock(&component->cmd_queue_mutex);
-
-}
-
-OMX_ERRORTYPE 
-omx_send_command_and_wait(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData)
-{
-  omx_send_command_and_wait0(component,Cmd,nParam,pCmdData);
-  omx_send_command_and_wait1(component,Cmd,nParam,pCmdData);
-}
-
 
 /* Based on allocbufs from omxtx.
    Buffers are connected as a one-way linked list using pAppPrivate as the pointer to the next element */
@@ -365,8 +365,24 @@ omx_setup_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec
   return OMX_ErrorNone;
 }
 
+int 
+omx_get_free_buffer_count(struct omx_component_t* component)
+{
+  int n = 0;
+  OMX_BUFFERHEADERTYPE *buf = component->buffers;
 
-void omx_teardown_pipeline(struct omx_pipeline_t* pipe)
+  pthread_mutex_lock(&component->buf_mutex);
+  while (buf) {
+    if (buf->nFilledLen == 0) n++;
+    buf = buf->pAppPrivate;
+  }
+  pthread_mutex_unlock(&component->buf_mutex);
+
+  return n;
+}
+
+void 
+omx_teardown_pipeline(struct omx_pipeline_t* pipe)
 {
    OMX_BUFFERHEADERTYPE *buf;
    int i=1;
@@ -385,9 +401,6 @@ void omx_teardown_pipeline(struct omx_pipeline_t* pipe)
 [EVENT] Got an event of type 4 on video_scheduler 0x430d10 (d1: b, d2 1)
 [EVENT] Got an event of type 4 on video_render 0x430b30 (d1: 5a, d2 1) 5a = port (90) 1 = OMX_BUFFERFLAG_EOS
 */
-
-   fprintf(stderr,"[vcodec] omx_teardown pipeline 1\n");
-
 
    fprintf(stderr,"[vcodec] omx_teardown pipeline 2b\n");
    /* Flush entrance to pipeline */
@@ -438,10 +451,10 @@ disabled (but it completes before the video scheduler port disabling completes).
    OERR(OMX_SetupTunnel(pipe->video_scheduler.h, 11, NULL, 0));
    OERR(OMX_SetupTunnel(pipe->video_render.h, 90, NULL, 0));
 
-   OERR(OMX_SetupTunnel(pipe->clock.h, 81, NULL, 0));
+   OERR(OMX_SetupTunnel(pipe->clock.h, 80, NULL, 0));
    OERR(OMX_SetupTunnel(pipe->video_scheduler.h, 12, NULL, 0));
 
-   OERR(OMX_SetupTunnel(pipe->clock.h, 80, NULL, 0));
+   
 
    fprintf(stderr,"[vcodec] omx_teardown pipeline 14\n");
    /* Transition all components to Idle */

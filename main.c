@@ -57,7 +57,7 @@ init_demux(const char *input_file, const char *output_file) {
     memcpy(demux_ctx->output_filename, output_file, strlen(output_file) + 1);
     
     demux_ctx->video_queue = malloc(sizeof(struct packet_queue_t));
-    
+    demux_ctx->video_queue->queue_finished = 0;
     return demux_ctx;
 }
 
@@ -69,6 +69,7 @@ init_decode(struct av_demux_t *demux_ctx) {
     omx_setup_pipeline(&decoder_ctx->pipeline, OMX_VIDEO_CodingAVC);
 
     decoder_ctx->video_queue = demux_ctx->video_queue;
+    decoder_ctx->first_packet = 1;
     
     return decoder_ctx;
 }
@@ -114,6 +115,7 @@ int main(int argc, char **argv) {
     
     printf("the other two threads have terminating, i'm dying as well\n");
     /* do any cleanup */
+    omx_teardown_pipeline(&decoder_ctx->pipeline);
     OERR(OMX_Deinit());
     free(demux_ctx->input_filename);
     free(demux_ctx->output_filename);
