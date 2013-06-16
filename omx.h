@@ -84,6 +84,7 @@ void omx_teardown_pipeline(struct omx_pipeline_t* pipe);
 OMX_ERRORTYPE omx_send_command_and_wait(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData);
 int omx_get_free_buffer_count(struct omx_component_t* component);
 OMX_BUFFERHEADERTYPE *get_next_buffer(struct omx_component_t* component);
+OMX_TICKS pts_to_omx(uint64_t pts);
 
 #ifdef	__cplusplus
 }

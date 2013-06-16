@@ -8,7 +8,13 @@
 
 #include "omx.h"
 
-
+OMX_TICKS pts_to_omx(uint64_t pts)
+{
+  OMX_TICKS ticks;
+  ticks.nLowPart = pts;
+  ticks.nHighPart = pts >> 32;
+  return ticks;
+};
 /**
  * Populates the omx_cmd_t struct inside the component struct
  * 
@@ -315,7 +321,7 @@ omx_setup_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec
 
   OMX_INIT_STRUCTURE(cstate);
   cstate.eState = OMX_TIME_ClockStateWaitingForStartTime;
-  cstate.nWaitMask = OMX_CLOCKPORT0|OMX_CLOCKPORT1;
+  cstate.nWaitMask = OMX_CLOCKPORT0;
   OERR(OMX_SetParameter(pipe->clock.h, OMX_IndexConfigTimeClockState, &cstate));
 
   omx_init_component(pipe, &pipe->video_scheduler, "OMX.broadcom.video_scheduler");
@@ -343,13 +349,13 @@ omx_setup_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec
   OERR(OMX_SetParameter(pipe->video_decode.h, OMX_IndexParamVideoPortFormat, &format));
 
    /* Enable error concealment for H264 only - without this, HD channels don't work reliably */
-  if (video_codec == OMX_VIDEO_CodingAVC) {
+ /* if (video_codec == OMX_VIDEO_CodingAVC) {
      OMX_PARAM_BRCMVIDEODECODEERRORCONCEALMENTTYPE ec;
      OMX_INIT_STRUCTURE(ec);
      ec.bStartWithValidFrame = OMX_FALSE;
      OERR(OMX_SetParameter(pipe->video_decode.h, OMX_IndexParamBrcmVideoDecodeErrorConcealment, &ec));
   }
-
+*/
   /* Enable video decoder input port */
   omx_send_command_and_wait0(&pipe->video_decode, OMX_CommandPortEnable, 130, NULL);
 

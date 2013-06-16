@@ -69,7 +69,6 @@ init_decode(struct av_demux_t *demux_ctx) {
     struct decode_ctx_t *decoder_ctx;
 
     decoder_ctx = malloc(sizeof (*decoder_ctx));
-    omx_setup_pipeline(&decoder_ctx->pipeline, OMX_VIDEO_CodingAVC);
 
     decoder_ctx->video_queue = demux_ctx->video_queue;
     decoder_ctx->first_packet = 1;

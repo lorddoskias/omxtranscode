@@ -182,6 +182,8 @@ video_thread(void *ctx) {
     int bytes_left;
     uint8_t *p; /* points to currently copied buffer */
 
+    omx_setup_pipeline(&decoder_ctx->pipeline, OMX_VIDEO_CodingAVC);
+    
     /* main loop that will poll packets and render*/
     while (decoder_ctx->video_queue->queue_count != 0 || decoder_ctx->video_queue->queue_finished != 1) {
         current_packet = packet_queue_get_next_item(decoder_ctx->video_queue);
@@ -201,11 +203,10 @@ video_thread(void *ctx) {
             bytes_left -= copy_length;
 
             buf->nFilledLen = copy_length;
-            buf->nFlags = 0;
-
+            buf->nTimeStamp = pts_to_omx(current_packet->PTS);
+            
             if (decoder_ctx->first_packet) {
-                printf("First video packet received\n");
-                buf->nFlags |= OMX_BUFFERFLAG_STARTTIME;
+                buf->nFlags = OMX_BUFFERFLAG_STARTTIME;
                 decoder_ctx->first_packet = 0;
             } else {
                 //taken from ilclient
@@ -216,7 +217,6 @@ video_thread(void *ctx) {
                 decoder_ctx->pipeline.video_decode.port_settings_changed = 0;
 
                 fprintf(stderr, "video_decode port_settings_changed = 1\n");
-                decoder_ctx->pipeline.video_render.h;
                 OERR(OMX_SetupTunnel(decoder_ctx->pipeline.video_decode.h, 131, decoder_ctx->pipeline.video_scheduler.h, 10));
                 omx_send_command_and_wait(&decoder_ctx->pipeline.video_decode, OMX_CommandPortEnable, 131, NULL);
 

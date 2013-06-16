@@ -22,7 +22,6 @@ struct packet_t
 {
   uint8_t *data; /* The buffer to be freed after use */
   int data_length; /* Number of bytes in packet */
-  int frametype;
   struct list_head list;
   int64_t PTS;
   int64_t DTS;
