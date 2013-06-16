@@ -29,6 +29,7 @@ extern "C" {
         (a).nSize = sizeof(a); \
         (a).nVersion.nVersion = OMX_VERSION
 
+    /* used for identifying commands to block on */
     struct omx_cmd_t {
         OMX_HANDLETYPE *hComponent;
         OMX_COMMANDTYPE Cmd;
@@ -75,12 +76,7 @@ extern "C" {
     };
 
     
-OMX_ERRORTYPE omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* component, char* compname);
 OMX_ERRORTYPE omx_setup_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec);
-OMX_ERRORTYPE omx_send_command_and_wait(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData);
-OMX_ERRORTYPE omx_send_command_and_wait0(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData);
-OMX_ERRORTYPE omx_send_command_and_wait1(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData);   
-void omx_alloc_buffers(struct omx_component_t *component, int port);    
     
 #ifdef	__cplusplus
 }
