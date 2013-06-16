@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <unistd.h>
-
+#include "c++/4.6.3/ext/atomicity.h"
 #include "include/libavformat/avformat.h"
 #include "include/libavutil/mathematics.h"
 #include "demux.h"
@@ -71,7 +71,10 @@ extract_video_stream(AVFormatContext *fmt_ctx, AVStream *video_stream, struct av
         av_free_packet(&packet);
     }
     
+    pthread_rwlock_wrlock(&ctx->video_queue->queue_finished_rwlock);
     ctx->video_queue->queue_finished = 1;
+    pthread_rwlock_unlock(&ctx->video_queue->queue_finished_rwlock)
+    
     fclose(output_file);
 }
 
