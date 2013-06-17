@@ -58,7 +58,6 @@ extract_video_stream(AVFormatContext *fmt_ctx, AVStream *video_stream, struct av
             video_packet->data_length = packet.size;
             video_packet->data = malloc(packet.size);
             memcpy(video_packet->data, packet.data, packet.size);
-            //we are dealing with video frames
             fwrite(video_packet->data, sizeof (*video_packet->data), video_packet->data_length, output_file);
             
             /* The best thing will be do actually add each and every packet into a 

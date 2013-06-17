@@ -443,7 +443,6 @@ omx_teardown_pipeline(struct omx_pipeline_t* pipe)
    /* NOTE: The clock disable doesn't complete until after the video scheduler port is
 disabled (but it completes before the video scheduler port disabling completes). */
    OERR(OMX_SendCommand(pipe->clock.h, OMX_CommandPortDisable, 80, NULL));
-   OERR(OMX_SendCommand(pipe->clock.h, OMX_CommandPortDisable, 81, NULL));
    omx_send_command_and_wait(&pipe->video_scheduler, OMX_CommandPortDisable, 12, NULL);
    fprintf(stderr,"[vcodec] omx_teardown pipeline 12\n");
 
