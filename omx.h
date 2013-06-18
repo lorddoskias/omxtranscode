@@ -53,15 +53,22 @@ extern "C" {
 
         /* Pointer to parent pipeline */
         struct omx_pipeline_t* pipe;
-
-        OMX_BUFFERHEADERTYPE *buffers;
+        
         int port_settings_changed;
         int config_changed;
 
-        pthread_mutex_t buf_mutex;
-        int buf_notempty;
-        pthread_cond_t buf_notempty_cv;
+        //input buffers
+        pthread_mutex_t buf_in_mutex;
+        OMX_BUFFERHEADERTYPE *in_buffers;
+        int buf_in_notempty;
+        pthread_cond_t buf_in_notempty_cv;
 
+        //output buffers
+        pthread_mutex_t buf_out_mutex;
+        OMX_BUFFERHEADERTYPE *out_buffers;
+        int buf_out_notempty;
+        pthread_cond_t buf_out_notempty_cv;
+        
         pthread_mutex_t eos_mutex;
         int eos;
         pthread_cond_t eos_cv;
@@ -80,15 +87,15 @@ extern "C" {
         pthread_cond_t omx_active_cv;
     };
 
-    
+OMX_ERRORTYPE omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* component, char* compname);
 OMX_ERRORTYPE omx_setup_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec);
 OMX_ERRORTYPE omx_setup_encoding_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec);
-void omx_teardown_pipeline(struct omx_pipeline_t* pipe);
-OMX_ERRORTYPE omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* component, char* compname);
+OMX_BUFFERHEADERTYPE *omx_get_next_input_buffer(struct omx_component_t* component);
+OMX_BUFFERHEADERTYPE *omx_get_next_output_buffer(struct omx_component_t* component);
 OMX_ERRORTYPE omx_send_command_and_wait(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData);
 void omx_alloc_buffers(struct omx_component_t *component, int port); 
 int omx_get_free_buffer_count(struct omx_component_t* component);
-OMX_BUFFERHEADERTYPE *get_next_buffer(struct omx_component_t* component);
+void omx_teardown_pipeline(struct omx_pipeline_t* pipe);
 OMX_TICKS pts_to_omx(uint64_t pts);
 
 #ifdef	__cplusplus

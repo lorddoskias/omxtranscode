@@ -140,24 +140,47 @@ omx_empty_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
 
     struct omx_component_t* component = (struct omx_component_t*) pAppData;
 
-    if (component->buf_notempty == 0) {
-        pthread_mutex_lock(&component->buf_mutex);
-        component->buf_notempty = 1;
-        pthread_cond_signal(&component->buf_notempty_cv);
-        pthread_mutex_unlock(&component->buf_mutex);
+    /*here we just signal that there is at
+     least 1 non-empty input buffer 
+     */
+    if (component->buf_in_notempty == 0) {
+        pthread_mutex_lock(&component->buf_in_mutex);
+        component->buf_in_notempty = 1;
+        pthread_cond_signal(&component->buf_in_notempty_cv);
+        pthread_mutex_unlock(&component->buf_in_mutex);
     }
     return OMX_ErrorNone;
 }
 
-
-static 
-OMX_ERRORTYPE 
+static
+OMX_ERRORTYPE
 omx_fill_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
-                                          OMX_IN OMX_PTR pAppData,
-                                          OMX_IN OMX_BUFFERHEADERTYPE* pBuffer)
-{
-  fprintf(stderr,"[omx_fill_buffer_done]\n");
-  return OMX_ErrorNone;
+        OMX_IN OMX_PTR pAppData,
+        OMX_IN OMX_BUFFERHEADERTYPE* pBuffer) {
+
+    struct omx_component_t* component = (struct omx_component_t*) pAppData;
+    OMX_BUFFERHEADERTYPE *current;
+    
+    /* we  get the buffer with encoded data here 
+     * and we have to queue it and then consume it from within another thread 
+     */
+    
+    pthread_mutex_lock(&component->buf_out_mutex);
+    current = component->out_buffers;
+    while(current && current->pAppPrivate)
+        current = current->pAppPrivate;
+    
+    if(!current)
+        component->out_buffers = pBuffer;
+    else
+        current->pAppPrivate = pBuffer;
+    
+    pBuffer->pAppPrivate = NULL;
+    component->buf_out_notempty = 1;
+    pthread_cond_signal(&component->buf_out_notempty_cv);
+    pthread_mutex_unlock(&component->buf_out_mutex);
+    
+    return OMX_ErrorNone;
 }
 
 
@@ -194,10 +217,18 @@ omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* componen
 
   pthread_mutex_init(&component->cmd_queue_mutex, NULL);
   pthread_cond_init(&component->cmd_queue_count_cv,NULL);
-  component->buf_notempty = 1;
-  pthread_cond_init(&component->buf_notempty_cv,NULL);
-  pthread_cond_init(&component->eos_cv,NULL);
+  
+  pthread_mutex_init(&component->buf_in_mutex, NULL);
+  pthread_cond_init(&component->buf_in_notempty_cv,NULL);
+  component->buf_in_notempty = 1;
+  
+  pthread_mutex_init(&component->buf_out_mutex, NULL);
+  pthread_cond_init(&component->buf_out_notempty_cv,NULL);
+  component->buf_out_notempty = 0;
+  
   pthread_mutex_init(&component->eos_mutex,NULL);
+  pthread_cond_init(&component->eos_cv,NULL);
+  
 
   component->callbacks.EventHandler = omx_event_handler;
   component->callbacks.EmptyBufferDone = omx_empty_buffer_done;
@@ -241,35 +272,40 @@ omx_alloc_buffers(struct omx_component_t *component, int port)
         end = (OMX_BUFFERHEADERTYPE **) &((*end)->pAppPrivate);
     }
 
-    component->buffers = list;
+    if (portdef.eDir == OMX_DirInput) { 
+        component->in_buffers = list;
+    } else { 
+        component->out_buffers = list;
+    }
+    
     
     printf("[DEBUG] Allocating buffers for %s done\n", component->name);
 }
 
 /* Return the next free buffer, or NULL if none are free */
 OMX_BUFFERHEADERTYPE *
-get_next_buffer(struct omx_component_t* component) {
+omx_get_next_input_buffer(struct omx_component_t* component) {
     OMX_BUFFERHEADERTYPE *ret;
 
 retry:
-    pthread_mutex_lock(&component->buf_mutex);
+    pthread_mutex_lock(&component->buf_in_mutex);
 
-    ret = component->buffers;
+    ret = component->in_buffers;
     while (ret && ret->nFilledLen > 0)
         ret = ret->pAppPrivate;
 
     if (!ret)
-        component->buf_notempty = 0;
+        component->buf_in_notempty = 0;
 
     if (ret) {
-        pthread_mutex_unlock(&component->buf_mutex);
+        pthread_mutex_unlock(&component->buf_in_mutex);
         return ret;
     }
 
-    while (component->buf_notempty == 0)
-        pthread_cond_wait(&component->buf_notempty_cv, &component->buf_mutex);
+    while (component->buf_in_notempty == 0)
+        pthread_cond_wait(&component->buf_in_notempty_cv, &component->buf_in_mutex);
 
-    pthread_mutex_unlock(&component->buf_mutex);
+    pthread_mutex_unlock(&component->buf_in_mutex);
 
     goto retry;
 
@@ -277,31 +313,76 @@ retry:
     return NULL;
 }
 
-void 
-omx_free_buffers(struct omx_component_t *component, int port)
-{
-  OMX_BUFFERHEADERTYPE *buf, *prev;
+/* Return the next full buffer*/
+OMX_BUFFERHEADERTYPE *
+omx_get_next_output_buffer(struct omx_component_t* component) {
 
-  buf = component->buffers;
-  while (buf) {
-    prev = buf->pAppPrivate;
-    OERR(OMX_FreeBuffer(component->h, port, buf)); /* This also calls free() */
-    buf = prev;
-  }
+    OMX_BUFFERHEADERTYPE *ret = NULL, *prev = NULL;
+
+    pthread_mutex_lock(&component->buf_out_mutex);
+    while (component->buf_out_notempty == 0) {
+        pthread_cond_wait(&component->buf_out_notempty_cv, &component->buf_out_mutex);
+    }
+
+    do {
+        ret = component->out_buffers;
+        //go to the end of the list
+        while (ret != NULL) {
+            prev = ret;
+            ret = ret->pAppPrivate;
+        }
+
+        if (ret) {
+            if (prev == NULL)
+                component->out_buffers = ret->pAppPrivate;
+            else
+                prev->pAppPrivate = ret->pAppPrivate;
+
+            ret->pAppPrivate = NULL;
+        }
+
+        pthread_mutex_unlock(&component->buf_out_mutex);
+
+    } while (!ret);
+
+    return ret;
+}
+
+void
+omx_free_buffers(struct omx_component_t *component, int port) {
+    OMX_BUFFERHEADERTYPE *buf, *prev;
+    OMX_PARAM_PORTDEFINITIONTYPE portdef;
+
+    OMX_INIT_STRUCTURE(portdef);
+    portdef.nPortIndex = port;
+
+    OERR(OMX_GetParameter(component->h, OMX_IndexParamPortDefinition, &portdef));
+
+    if (portdef.eDir == OMX_DirInput) {
+        buf = component->in_buffers;
+    } else {
+        buf = component->out_buffers;
+    }
+
+    while (buf) {
+        prev = buf->pAppPrivate;
+        OERR(OMX_FreeBuffer(component->h, port, buf)); /* This also calls free() */
+        buf = prev;
+    }
 }
 
 int 
 omx_get_free_buffer_count(struct omx_component_t* component)
 {
   int n = 0;
-  OMX_BUFFERHEADERTYPE *buf = component->buffers;
+  OMX_BUFFERHEADERTYPE *buf = component->in_buffers;
 
-  pthread_mutex_lock(&component->buf_mutex);
+  pthread_mutex_lock(&component->buf_in_mutex);
   while (buf) {
     if (buf->nFilledLen == 0) n++;
     buf = buf->pAppPrivate;
   }
-  pthread_mutex_unlock(&component->buf_mutex);
+  pthread_mutex_unlock(&component->buf_in_mutex);
 
   return n;
 }
