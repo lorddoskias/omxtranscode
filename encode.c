@@ -158,7 +158,7 @@ encode_thread(void *ctx) {
 
             OERR(OMX_EmptyThisBuffer(decoder_ctx->pipeline.video_decode.h, input_buffer));
             
-            output_buffer = omx_get_next_input_buffer(&decoder_ctx->pipeline.video_encode);
+            output_buffer = omx_get_next_output_buffer(&decoder_ctx->pipeline.video_encode);
             OERR(OMX_FillThisBuffer(decoder_ctx->pipeline.video_decode.h, output_buffer));
 
 
