@@ -604,10 +604,6 @@ omx_setup_encoding_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE vi
   /* Change video_decode to OMX_StateExecuting */
   omx_send_command_and_wait(&pipe->video_decode, OMX_CommandStateSet, OMX_StateExecuting, NULL);
 
-  /* configure the resize */
-  omx_send_command_and_wait(&pipe->resize, OMX_CommandStateSet, OMX_StateIdle, NULL);
-  omx_send_command_and_wait(&pipe->resize, OMX_CommandPortEnable, 60, NULL);
-  
   /* the rest of the config will be done  in the main event loop
    when the decoder has received port chagned event*/
   

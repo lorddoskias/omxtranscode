@@ -26,7 +26,7 @@ video_thread(void *ctx) {
         while (bytes_left > 0) {
 
             fprintf(stderr, "OMX buffers: v: %02d/20, vcodec queue: %4d\r", omx_get_free_buffer_count(&decoder_ctx->pipeline.video_decode), decoder_ctx->video_queue->queue_count);
-            buf = get_next_buffer(&decoder_ctx->pipeline.video_decode); /* This will block if there are no empty buffers */
+            buf = omx_get_next_input_buffer(&decoder_ctx->pipeline.video_decode); /* This will block if there are no empty buffers */
 
             /* copy at most the length of the OMX buf*/
             int copy_length = OMX_MIN(bytes_left, buf->nAllocLen);
@@ -77,7 +77,7 @@ video_thread(void *ctx) {
 
     printf("Finishing stream \n");
     /* Indicate end of video stream */
-    buf = get_next_buffer(&decoder_ctx->pipeline.video_decode);
+    buf = omx_get_next_input_buffer(&decoder_ctx->pipeline.video_decode);
 
     buf->nFilledLen = 0;
     buf->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN | OMX_BUFFERFLAG_EOS;
