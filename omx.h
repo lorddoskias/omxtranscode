@@ -72,6 +72,8 @@ extern "C" {
         struct omx_component_t video_scheduler;
         struct omx_component_t video_render;
         struct omx_component_t clock;
+        struct omx_component_t resize;
+        struct omx_component_t video_encode;
 
         pthread_mutex_t omx_active_mutex;
         int omx_active;
@@ -80,8 +82,11 @@ extern "C" {
 
     
 OMX_ERRORTYPE omx_setup_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec);
+OMX_ERRORTYPE omx_setup_encoding_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec);
 void omx_teardown_pipeline(struct omx_pipeline_t* pipe);
+OMX_ERRORTYPE omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* component, char* compname);
 OMX_ERRORTYPE omx_send_command_and_wait(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData);
+void omx_alloc_buffers(struct omx_component_t *component, int port); 
 int omx_get_free_buffer_count(struct omx_component_t* component);
 OMX_BUFFERHEADERTYPE *get_next_buffer(struct omx_component_t* component);
 OMX_TICKS pts_to_omx(uint64_t pts);

@@ -15,6 +15,7 @@
 #include "demux.h"
 #include "omx.h"
 #include "video.h"
+#include "encode.h"
 
 /* Data types */
 
@@ -77,12 +78,13 @@ init_decode(struct av_demux_t *demux_ctx) {
 }
 
 
-
 int main(int argc, char **argv) {
 
 
     pthread_t demux_tid = 0;
     pthread_t decoder_tid = 0;
+    pthread_t writer_tid = 0;
+    
     pthread_attr_t attr;
     int status;
     struct av_demux_t *demux_ctx;
@@ -93,31 +95,30 @@ int main(int argc, char **argv) {
     
     bcm_host_init();
     OERR(OMX_Init());
-    
+ 
     demux_ctx = init_demux(argv[1], argv[2]);
     decoder_ctx = init_decode(demux_ctx);
 
-    /* start the thread that will pump packets in the queue */
+    // start the thread that will pump packets in the queue 
     status = pthread_create(&demux_tid, &attr, demux_thread, demux_ctx);
     if(status) {
         printf("Error creating demux thread : %d\n", status);
     }
 
-    /* start the thread that will consume packets from the queue */
+    // start the thread that will consume packets from the queue 
     status = pthread_create(&decoder_tid, &attr, video_thread, decoder_ctx);
     if (status) {
         printf("Error creating decode thread : %d\n", status);
     }
-    /* start the decoding pipeline that will */
     
     
-    /* block until the demux and decoder are finished finished */
+    // block until the demux and decoder are finished finished
     pthread_join(demux_tid, NULL);
    // pthread_join(decoder_tid, NULL);
     
     printf("the other two threads have terminating, i'm dying as well\n");
     
-    /* do any cleanup */
+    // do any cleanup
     OERR(OMX_Deinit());
     free(demux_ctx->input_filename);
     free(demux_ctx->output_filename);
@@ -127,3 +128,25 @@ int main(int argc, char **argv) {
 }
 
 
+
+/*
+int main(int argc, char **argv) {
+    
+    struct omx_component_t render;
+    OMX_IMAGE_PARAM_PORTFORMATTYPE render_format;
+    
+    OMX_INIT_STRUCTURE(render_format);
+    render_format.nPortIndex = 60;
+    bcm_host_init();
+    OERR(OMX_Init());
+    omx_init_component(NULL, &render, "OMX.broadcom.resize");
+    
+   OERR(OMX_GetParameter(render.h, OMX_IndexParamImagePortFormat, &render_format));
+   
+   printf("supported color format: %x\n", render_format.eColorFormat);
+   printf("supported compression format: %d\n", render_format.eCompressionFormat);
+   
+   OERR(OMX_Deinit());
+    
+}
+ * */
