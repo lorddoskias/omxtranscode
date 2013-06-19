@@ -189,20 +189,16 @@ decode_thread(void *ctx) {
             OERR(OMX_EmptyThisBuffer(decoder_ctx->pipeline.video_decode.h, input_buffer));
             
 
-
-            if (decoder_working) {
-                output_buffer = omx_get_next_output_buffer(&decoder_ctx->pipeline.video_encode);
-                OERR(OMX_FillThisBuffer(decoder_ctx->pipeline.video_encode.h, output_buffer));
-                if (output_buffer != NULL) {
-
-                    written = fwrite(output_buffer->pBuffer, 1, output_buffer->nFilledLen, out_file);
-                    if (written != output_buffer->nFilledLen) {
-                        printf("fwrite: Error emptying buffer. Written %d bytes out of %d!\n", written, output_buffer->nFilledLen);
-                    }
-                    output_buffer->nFilledLen = 0;
-                } else {
-                    printf("Not getting it :(\n");
-                }
+            //put data in the processed queue
+            if (decoder_ctx->pipeline.encoded_video.queue_count > 50) {
+                //drain the queue
+                do {
+                    struct packet_t *encoded_packet = packet_queue_get_next_item(&decoder_ctx->pipeline.encoded_video);
+                    written = fwrite(encoded_packet->data, 1, encoded_packet->data_length, out_file);
+                    packet_queue_free_item(encoded_packet);
+                } while (decoder_ctx->pipeline.encoded_video.queue_count > 10);
+            } else if (decoder_working) {
+                OERR(OMX_FillThisBuffer(decoder_ctx->pipeline.video_encode.h, omx_get_next_output_buffer(&decoder_ctx->pipeline.video_encode)));
             }
         }
 
@@ -219,5 +215,13 @@ decode_thread(void *ctx) {
 
     OERR(OMX_EmptyThisBuffer(decoder_ctx->pipeline.video_decode.h, input_buffer));
 
+    //drain the rest of the encoded packets 
+    while (decoder_ctx->pipeline.encoded_video.queue_count > 0) {
+        struct packet_t *encoded_packet = packet_queue_get_next_item(&decoder_ctx->pipeline.encoded_video);
+        written = fwrite(encoded_packet->data, 1, encoded_packet->data_length, out_file);
+        packet_queue_free_item(encoded_packet);
+    }
+    
+    
    // omx_teardown_pipeline(&decoder_ctx->pipeline);
 }

@@ -111,14 +111,14 @@ int main(int argc, char **argv) {
         printf("Error creating decode thread : %d\n", status);
     }*/
     
-    status = pthread_create(&encoder_tid, &attr, encode_thread, decoder_ctx);
+    status = pthread_create(&encoder_tid, &attr, decode_thread, decoder_ctx);
     if (status) {
         printf("Error creating decode thread : %d\n", status);
     }
     
     // block until the demux and decoder are finished finished
     pthread_join(demux_tid, NULL);
-   // pthread_join(decoder_tid, NULL);
+    pthread_join(encoder_tid, NULL);
     
     printf("the other two threads have terminating, i'm dying as well\n");
     

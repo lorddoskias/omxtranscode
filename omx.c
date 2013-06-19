@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "omx.h"
+#include "packet_queue.h"
 
 OMX_TICKS pts_to_omx(uint64_t pts)
 {
@@ -152,35 +153,56 @@ omx_empty_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
 
 static
 OMX_ERRORTYPE
-omx_fill_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
+omx_generic_fill_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
+        OMX_IN OMX_PTR pAppData,
+        OMX_IN OMX_BUFFERHEADERTYPE* pBuffer) {
+
+    fprintf(stderr, "[omx_generic_fill_buffer_done]\n");
+    return OMX_ErrorNone;
+}
+
+static
+OMX_ERRORTYPE
+omx_encoder_fill_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
         OMX_IN OMX_PTR pAppData,
         OMX_IN OMX_BUFFERHEADERTYPE* pBuffer) {
 
     struct omx_component_t* component = (struct omx_component_t*) pAppData;
     OMX_BUFFERHEADERTYPE *current;
-    
+    struct packet_t *encoded_packet;
     /* we  get the buffer with encoded data here 
      * and we have to queue it and then consume it from within another thread 
      */
+
+
+    encoded_packet = malloc(sizeof (*encoded_packet));
+
+    encoded_packet->data_length = pBuffer->nFilledLen;
+    encoded_packet->data = malloc(pBuffer->nFilledLen);
+    memcpy(encoded_packet->data, pBuffer->pBuffer, pBuffer->nFilledLen);
+    packet_queue_add_item(&component->pipe->encoded_video, encoded_packet);
+    
+    
+    pBuffer->nFilledLen = 0; //prep buffer for return;
     
     pthread_mutex_lock(&component->buf_out_mutex);
     current = component->out_buffers;
-    while(current && current->pAppPrivate)
+    while (current && current->pAppPrivate)
         current = current->pAppPrivate;
-    
-    if(!current)
+
+    if (!current)
         component->out_buffers = pBuffer;
     else
         current->pAppPrivate = pBuffer;
-    
+
     pBuffer->pAppPrivate = NULL;
     if (component->buf_out_notempty == 0) {
         component->buf_out_notempty = 1;
         pthread_cond_signal(&component->buf_out_notempty_cv);
     }
-    
+
     pthread_mutex_unlock(&component->buf_out_mutex);
-    
+
     return OMX_ErrorNone;
 }
 
@@ -233,7 +255,12 @@ omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* componen
 
   component->callbacks.EventHandler = omx_event_handler;
   component->callbacks.EmptyBufferDone = omx_empty_buffer_done;
-  component->callbacks.FillBufferDone = omx_fill_buffer_done;
+  if(strcmp(compname, "OMX.broadcom.video_encode") == 0) {
+      component->callbacks.FillBufferDone = omx_encoder_fill_buffer_done;
+  } else { 
+      component->callbacks.FillBufferDone = omx_generic_fill_buffer_done;
+  }
+  
 
   component->pipe = pipe;
   
@@ -568,14 +595,12 @@ OMX_ERRORTYPE
 omx_setup_encoding_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec)
 {
   OMX_VIDEO_PARAM_PORTFORMATTYPE format;
-  OMX_CONFIG_BOOLEANTYPE configBoolTrue;
-  
-  OMX_INIT_STRUCTURE(configBoolTrue);
-  configBoolTrue.bEnabled = OMX_TRUE;
 
   omx_init_component(pipe, &pipe->video_decode, "OMX.broadcom.video_decode");
   omx_init_component(pipe, &pipe->resize, "OMX.broadcom.resize");
   omx_init_component(pipe, &pipe->video_encode, "OMX.broadcom.video_encode");
+  
+  packet_queue_init(&pipe->encoded_video);
 
   /* Configure video_decoder */
   omx_send_command_and_wait(&pipe->video_decode, OMX_CommandStateSet, OMX_StateIdle, NULL);

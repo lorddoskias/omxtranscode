@@ -10,6 +10,7 @@
 
 #include "include/interface/vcos/vcos.h"
 #include "include/IL/OMX_Broadcom.h"
+#include "packet_queue.h"
 
 #ifdef	__cplusplus
 extern "C" {
@@ -82,9 +83,8 @@ extern "C" {
         struct omx_component_t resize;
         struct omx_component_t video_encode;
 
-        pthread_mutex_t omx_active_mutex;
-        int omx_active;
-        pthread_cond_t omx_active_cv;
+        //holds processed packets from the encoder 
+        struct packet_queue_t encoded_video;
     };
 
 OMX_ERRORTYPE omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* component, char* compname);

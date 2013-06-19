@@ -34,7 +34,7 @@ struct packet_queue_t
   struct list_head queue;
   int queue_count;
   int first_packet;
-  volatile int queue_finished;
+  int queue_finished;
 };
 
 void packet_queue_init(struct packet_queue_t* component);
