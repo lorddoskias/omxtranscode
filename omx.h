@@ -93,6 +93,8 @@ OMX_ERRORTYPE omx_setup_encoding_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO
 OMX_BUFFERHEADERTYPE *omx_get_next_input_buffer(struct omx_component_t* component);
 OMX_BUFFERHEADERTYPE *omx_get_next_output_buffer(struct omx_component_t* component);
 OMX_ERRORTYPE omx_send_command_and_wait(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData);
+OMX_ERRORTYPE omx_send_command_and_wait0(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData); 
+OMX_ERRORTYPE omx_send_command_and_wait1(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData);
 void omx_alloc_buffers(struct omx_component_t *component, int port); 
 int omx_get_free_buffer_count(struct omx_component_t* component);
 void omx_teardown_pipeline(struct omx_pipeline_t* pipe);

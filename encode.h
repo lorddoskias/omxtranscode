@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 void *write_thread(void *ctx);
-void *encode_thread(void *ctx);
+void *decode_thread(void *ctx);
 
 #ifdef	__cplusplus
 }

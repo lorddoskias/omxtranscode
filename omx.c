@@ -24,7 +24,6 @@ OMX_TICKS pts_to_omx(uint64_t pts)
  * @param pCmdData
  * @return 
  */
-static
 OMX_ERRORTYPE
 omx_send_command_and_wait0(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData) 
 {
@@ -45,7 +44,6 @@ omx_send_command_and_wait0(struct omx_component_t* component, OMX_COMMANDTYPE Cm
  * @param pCmdData
  * @return 
  */
-static
 OMX_ERRORTYPE
 omx_send_command_and_wait1(struct omx_component_t* component, OMX_COMMANDTYPE Cmd, OMX_U32 nParam, OMX_PTR pCmdData) 
 {
