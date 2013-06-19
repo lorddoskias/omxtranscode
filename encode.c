@@ -18,7 +18,6 @@ decode_thread(void *ctx) {
     OMX_VIDEO_PARAM_BITRATETYPE bitrate; //used for the output of the encoder
     struct decode_ctx_t *decoder_ctx = (struct decode_ctx_t *) ctx;
     struct packet_t *current_packet;
-    int decoder_working;
     int bytes_left;
     uint8_t *p; // points to currently copied buffer 
 
@@ -172,19 +171,12 @@ decode_thread(void *ctx) {
             
                 fprintf(stderr,"encoder config finished\n");
             }
-            
-            if(decoder_ctx->pipeline.video_encode.port_settings_changed == 1) {
-                fprintf(stderr,"encoder port_settings_changed = 1\n");
-                decoder_ctx->pipeline.video_encode.port_settings_changed = 0;
-                decoder_working = 1;
-            }
 
             OERR(OMX_EmptyThisBuffer(decoder_ctx->pipeline.video_decode.h, input_buffer));
-
-            //send buffer to be filled
-            if (decoder_working) {
+            
+            if (decoder_ctx->pipeline.video_encode.port_settings_changed == 1) {
                 OERR(OMX_FillThisBuffer(decoder_ctx->pipeline.video_encode.h, omx_get_next_output_buffer(&decoder_ctx->pipeline.video_encode)));
-            } 
+            }
         }
 
         packet_queue_free_item(current_packet);
@@ -219,7 +211,7 @@ void *writer_thread(void *thread_ctx) {
 
     while (!ctx->video_queue->queue_finished) {
 
-        struct packet_t *encoded_packet = packet_queue_get_next_item(&ctx->pipeline.encoded_video);
+        struct packet_t *encoded_packet = packet_queue_get_next_item(&ctx->pipeline.encoded_video_queue);
         written = fwrite(encoded_packet->data, 1, encoded_packet->data_length, out_file);
         packet_queue_free_item(encoded_packet);
     }

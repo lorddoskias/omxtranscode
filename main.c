@@ -60,8 +60,6 @@ init_demux(const char *input_file, const char *output_file) {
     demux_ctx->video_queue = malloc(sizeof(struct packet_queue_t));
     packet_queue_init(demux_ctx->video_queue);
     
-    demux_ctx->video_queue->queue_finished = 0;
-    
     return demux_ctx;
 }
 

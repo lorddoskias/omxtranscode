@@ -82,9 +82,9 @@ extern "C" {
         struct omx_component_t clock;
         struct omx_component_t resize;
         struct omx_component_t video_encode;
-
+        
         //holds processed packets from the encoder 
-        struct packet_queue_t encoded_video;
+        struct packet_queue_t encoded_video_queue;
     };
 
 OMX_ERRORTYPE omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* component, char* compname);
