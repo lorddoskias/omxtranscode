@@ -174,8 +174,11 @@ omx_fill_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
         current->pAppPrivate = pBuffer;
     
     pBuffer->pAppPrivate = NULL;
-    component->buf_out_notempty = 1;
-    pthread_cond_signal(&component->buf_out_notempty_cv);
+    if (component->buf_out_notempty == 0) {
+        component->buf_out_notempty = 1;
+        pthread_cond_signal(&component->buf_out_notempty_cv);
+    }
+    
     pthread_mutex_unlock(&component->buf_out_mutex);
     
     return OMX_ErrorNone;
@@ -222,7 +225,7 @@ omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* componen
   
   pthread_mutex_init(&component->buf_out_mutex, NULL);
   pthread_cond_init(&component->buf_out_notempty_cv,NULL);
-  component->buf_out_notempty = 0;
+  component->buf_out_notempty = 1;
   
   pthread_mutex_init(&component->eos_mutex,NULL);
   pthread_cond_init(&component->eos_cv,NULL);
@@ -325,12 +328,13 @@ omx_get_next_output_buffer(struct omx_component_t* component) {
     do {
         ret = component->out_buffers;
         //go to the end of the list
-        while (ret != NULL) {
+        while (ret->pAppPrivate != NULL) {
             prev = ret;
             ret = ret->pAppPrivate;
         }
 
         if (ret) {
+            //if there is only 1 element in the list
             if (prev == NULL)
                 component->out_buffers = ret->pAppPrivate;
             else
@@ -604,7 +608,7 @@ omx_setup_encoding_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE vi
 
   /* the rest of the config will be done  in the main event loop
    when the decoder has received port chagned event*/
-  
+
   
   printf("[DEBUG] pipeline init done\n");
   return OMX_ErrorNone;

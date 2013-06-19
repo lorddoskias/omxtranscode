@@ -192,7 +192,7 @@ decode_thread(void *ctx) {
 
             if (decoder_working) {
                 output_buffer = omx_get_next_output_buffer(&decoder_ctx->pipeline.video_encode);
-                OERR(OMX_FillThisBuffer(decoder_ctx->pipeline.video_decode.h, output_buffer));
+                OERR(OMX_FillThisBuffer(decoder_ctx->pipeline.video_encode.h, output_buffer));
                 if (output_buffer != NULL) {
 
                     written = fwrite(output_buffer->pBuffer, 1, output_buffer->nFilledLen, out_file);
