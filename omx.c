@@ -355,7 +355,7 @@ omx_get_next_output_buffer(struct omx_component_t* component) {
     do {
         ret = component->out_buffers;
         //go to the end of the list
-        while (ret->pAppPrivate != NULL) {
+        while (ret && ret->pAppPrivate != NULL) {
             prev = ret;
             ret = ret->pAppPrivate;
         }

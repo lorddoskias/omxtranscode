@@ -26,6 +26,7 @@ extern "C" {
     };
 
 void * video_thread(void *ctx);
+void *writer_thread(void *thread_ctx);
 
 #ifdef	__cplusplus
 }

@@ -20,8 +20,6 @@ decode_thread(void *ctx) {
     struct packet_t *current_packet;
     int decoder_working;
     int bytes_left;
-    FILE *out_file;
-    size_t written;
     uint8_t *p; // points to currently copied buffer 
 
     // set common stuff 
@@ -29,12 +27,6 @@ decode_thread(void *ctx) {
     OMX_INIT_STRUCTURE(resizer_config);
     OMX_INIT_STRUCTURE(bitrate);
     OMX_INIT_STRUCTURE(encoder_config);
-    
-    out_file = fopen("encoder.h264", "w+");
-    if(out_file = NULL) {
-        printf("error creating output file. DYING \n");
-        exit(1);
-    }
     
     omx_setup_encoding_pipeline(&decoder_ctx->pipeline, OMX_VIDEO_CodingAVC);
     
@@ -173,6 +165,7 @@ decode_thread(void *ctx) {
                 //enable resizer -> encoder ports
                /* omx_send_command_and_wait(&decoder_ctx->pipeline.video_encode, OMX_CommandPortEnable, 200, NULL);
                 omx_send_command_and_wait(&decoder_ctx->pipeline.resize, OMX_CommandPortEnable, 61, NULL); */
+                //these have to be asynch 
                 OMX_SendCommand(decoder_ctx->pipeline.resize.h, OMX_CommandPortEnable, 61, NULL);
                 OMX_SendCommand(decoder_ctx->pipeline.video_encode.h, OMX_CommandPortEnable, 200, NULL);
                 omx_send_command_and_wait(&decoder_ctx->pipeline.video_encode, OMX_CommandStateSet, OMX_StateExecuting, NULL);
@@ -187,19 +180,11 @@ decode_thread(void *ctx) {
             }
 
             OERR(OMX_EmptyThisBuffer(decoder_ctx->pipeline.video_decode.h, input_buffer));
-            
 
-            //put data in the processed queue
-            if (decoder_ctx->pipeline.encoded_video.queue_count > 50) {
-                //drain the queue
-                do {
-                    struct packet_t *encoded_packet = packet_queue_get_next_item(&decoder_ctx->pipeline.encoded_video);
-                    written = fwrite(encoded_packet->data, 1, encoded_packet->data_length, out_file);
-                    packet_queue_free_item(encoded_packet);
-                } while (decoder_ctx->pipeline.encoded_video.queue_count > 10);
-            } else if (decoder_working) {
+            //send buffer to be filled
+            if (decoder_working) {
                 OERR(OMX_FillThisBuffer(decoder_ctx->pipeline.video_encode.h, omx_get_next_output_buffer(&decoder_ctx->pipeline.video_encode)));
-            }
+            } 
         }
 
         packet_queue_free_item(current_packet);
@@ -214,14 +199,30 @@ decode_thread(void *ctx) {
     input_buffer->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN | OMX_BUFFERFLAG_EOS;
 
     OERR(OMX_EmptyThisBuffer(decoder_ctx->pipeline.video_decode.h, input_buffer));
+    
+    decoder_ctx->video_queue->queue_finished = 1;
+   // omx_teardown_pipeline(&decoder_ctx->pipeline);
+}
 
-    //drain the rest of the encoded packets 
-    while (decoder_ctx->pipeline.encoded_video.queue_count > 0) {
-        struct packet_t *encoded_packet = packet_queue_get_next_item(&decoder_ctx->pipeline.encoded_video);
+void *writer_thread(void *thread_ctx) {
+
+    struct decode_ctx_t *ctx = (struct decode_ctx_t *) thread_ctx;
+    int written;
+    FILE *out_file;
+
+    out_file = fopen("movie.h264", "wb");
+    if (out_file == NULL) {
+        printf("error creating output file. DYING \n");
+        exit(1);
+    }
+
+
+    while (!ctx->video_queue->queue_finished) {
+
+        struct packet_t *encoded_packet = packet_queue_get_next_item(&ctx->pipeline.encoded_video);
         written = fwrite(encoded_packet->data, 1, encoded_packet->data_length, out_file);
         packet_queue_free_item(encoded_packet);
     }
-    
-    
-   // omx_teardown_pipeline(&decoder_ctx->pipeline);
+
+    fclose(out_file);
 }
