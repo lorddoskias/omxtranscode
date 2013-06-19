@@ -66,10 +66,9 @@ decode_thread(void *ctx) {
                 input_buffer->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN;
             }
 
+            //configure the resizer after the decoder has got output
             if (decoder_ctx->pipeline.video_decode.port_settings_changed == 1) {
                 decoder_ctx->pipeline.video_decode.port_settings_changed = 0;
-                decoder_working = 1;
-                fprintf(stderr, "video_decode port_settings_changed = 1\n");
                 
                 int x = 640;
                 int y = 480;
@@ -79,8 +78,6 @@ decode_thread(void *ctx) {
                 x &= ~0x0f;
                 y += 0x0f;
                 y &= ~0x0f;
-                
-                
                 
                 //get information about the decoded video
                 generic_config.nPortIndex = 131;
@@ -107,14 +104,32 @@ decode_thread(void *ctx) {
                 resizer_config.format.image.nFrameWidth = 640;
                 resizer_config.format.image.nFrameHeight = 480;
                 OERR(OMX_SetParameter(decoder_ctx->pipeline.resize.h, OMX_IndexParamPortDefinition, &resizer_config));
-                omx_send_command_and_wait(&decoder_ctx->pipeline.resize, OMX_CommandStateSet, OMX_StateIdle, NULL);
                 
-                //maybe i should invoke the resizer here ??!?!?!
-                usleep(40); //this might be waiting for the resizer to be configured
-                            //test it with a separate IF block after resizer port changed state
+                //tunnel from decoder to resizer 
+                OERR(OMX_SetupTunnel(decoder_ctx->pipeline.video_decode.h, 131, decoder_ctx->pipeline.resize.h, 60));
+                
+                //after this we cannot setparameter to resizer anymore
+                OMX_SendCommand(decoder_ctx->pipeline.resize.h, OMX_CommandStateSet, OMX_StateIdle, NULL);
+                
+                //enable decoder -> resizer ports 
+                omx_send_command_and_wait(&decoder_ctx->pipeline.video_decode, OMX_CommandPortEnable, 131, NULL);
+                omx_send_command_and_wait(&decoder_ctx->pipeline.resize, OMX_CommandPortEnable, 60, NULL);
+                omx_send_command_and_wait(&decoder_ctx->pipeline.resize, OMX_CommandStateSet, OMX_StateExecuting, NULL);
+                
+                fprintf(stderr,"finished resizer config\n");
+                
+            }
+            
+            //configure the encoder after the resizer has got output
+            if(decoder_ctx->pipeline.resize.port_settings_changed == 1) {
+                decoder_ctx->pipeline.resize.port_settings_changed = 0;
+                
+                fprintf(stderr, "resize port_settings_changed = 1\n");
+                
+                resizer_config.nPortIndex = 61; //resizer output port 
                 OERR(OMX_GetParameter(decoder_ctx->pipeline.resize.h, OMX_IndexParamPortDefinition, &resizer_config));
                 
-                //setup the encoder input
+                //setup the encoder input from resizer's output
                 generic_config.nPortIndex = 200; //encoder input port
                 generic_config.format.video.nFrameWidth = resizer_config.format.image.nFrameWidth;
                 generic_config.format.video.nFrameHeight = resizer_config.format.image.nFrameHeight;
@@ -126,24 +141,25 @@ decode_thread(void *ctx) {
                 generic_config.format.video.pNativeWindow = resizer_config.format.image.pNativeWindow;
                 OERR(OMX_SetParameter(decoder_ctx->pipeline.video_encode.h, OMX_IndexParamPortDefinition, &generic_config));
                 
+                
                 //configure encoder output format
                 encoder_config.nPortIndex = 201; //encoder output port
                 encoder_config.eCompressionFormat = OMX_VIDEO_CodingAVC;
                 OERR(OMX_SetParameter(decoder_ctx->pipeline.video_encode.h, OMX_IndexParamVideoPortFormat, &encoder_config));
                 
                 //configure encoder output bitrate
-                bitrate.nPortIndex = 201; //encoder output
+                bitrate.nPortIndex = 201;
                 bitrate.eControlRate = OMX_Video_ControlRateVariable; //var bitrate
                 bitrate.nTargetBitrate = 1000000; //1 mbit 
                	OERR(OMX_SetParameter(decoder_ctx->pipeline.video_encode.h, OMX_IndexParamVideoBitrate, &bitrate));
-                omx_send_command_and_wait(&decoder_ctx->pipeline.video_encode,OMX_CommandStateSet, OMX_StateIdle, NULL);
                 
+                //set encoder to idle after we have finished configuring it
+                OMX_SendCommand(decoder_ctx->pipeline.video_encode.h,OMX_CommandStateSet, OMX_StateIdle, NULL);
                 
-                //tunnel from decoder to resizer 
-                OERR(OMX_SetupTunnel(decoder_ctx->pipeline.video_decode.h, 131, decoder_ctx->pipeline.resize.h, 60));
-                //tunnel from resizer to encoder
+                 //tunnel from resizer to encoder
+                //this has to be done before the encoder's output port is enabled
                 OERR(OMX_SetupTunnel(decoder_ctx->pipeline.resize.h, 61, decoder_ctx->pipeline.video_encode.h, 200));
-            
+
                 //allocate buffers for output of the encoder
                 //send the enable command, which won't complete until the bufs are alloc'ed
                 omx_send_command_and_wait0(&decoder_ctx->pipeline.video_encode, OMX_CommandPortEnable, 201, NULL);
@@ -151,13 +167,18 @@ decode_thread(void *ctx) {
                 //block until the port is fully enabled
                 omx_send_command_and_wait1(&decoder_ctx->pipeline.video_encode, OMX_CommandPortEnable, 201, NULL);
                 
-                //enable decoder -> resizer -> encoder ports 
-                omx_send_command_and_wait(&decoder_ctx->pipeline.video_decode, OMX_CommandPortEnable, 131, NULL);
-                omx_send_command_and_wait(&decoder_ctx->pipeline.resize, OMX_CommandPortEnable, 60, NULL);
-                omx_send_command_and_wait(&decoder_ctx->pipeline.resize, OMX_CommandPortEnable, 61,NULL);
+                //enable resizer -> encoder ports
+                omx_send_command_and_wait(&decoder_ctx->pipeline.resize, OMX_CommandPortEnable, 61, NULL);
                 omx_send_command_and_wait(&decoder_ctx->pipeline.video_encode, OMX_CommandPortEnable, 200, NULL);
-                omx_send_command_and_wait(&decoder_ctx->pipeline.resize, OMX_CommandStateSet, OMX_StateExecuting, NULL);
                 omx_send_command_and_wait(&decoder_ctx->pipeline.video_encode, OMX_CommandStateSet, OMX_StateExecuting, NULL);
+            
+                fprintf(stderr,"encoder config finished\n");
+            }
+            
+            if(decoder_ctx->pipeline.video_encode.port_settings_changed == 1) {
+                fprintf(stderr,"encoder port_settings_changed = 1\n");
+                decoder_ctx->pipeline.video_encode.port_settings_changed = 0;
+                decoder_working = 1;
             }
 
             OERR(OMX_EmptyThisBuffer(decoder_ctx->pipeline.video_decode.h, input_buffer));
@@ -178,8 +199,6 @@ decode_thread(void *ctx) {
                     printf("Not getting it :(\n");
                 }
             }
-
-
         }
 
         packet_queue_free_item(current_packet);
