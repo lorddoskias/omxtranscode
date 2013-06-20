@@ -243,11 +243,11 @@ omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* componen
   
   pthread_mutex_init(&component->buf_in_mutex, NULL);
   pthread_cond_init(&component->buf_in_notempty_cv,NULL);
-  component->buf_in_notempty = 1;
+  component->buf_in_notempty = 0;
   
   pthread_mutex_init(&component->buf_out_mutex, NULL);
   pthread_cond_init(&component->buf_out_notempty_cv,NULL);
-  component->buf_out_notempty = 1;
+  component->buf_out_notempty = 0;
   
   pthread_mutex_init(&component->eos_mutex,NULL);
   pthread_cond_init(&component->eos_cv,NULL);
@@ -255,6 +255,7 @@ omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* componen
 
   component->callbacks.EventHandler = omx_event_handler;
   component->callbacks.EmptyBufferDone = omx_empty_buffer_done;
+  //FIXME: Better pass the required callbacks during init
   if(strcmp(compname, "OMX.broadcom.video_encode") == 0) {
       component->callbacks.FillBufferDone = omx_encoder_fill_buffer_done;
   } else { 
@@ -276,8 +277,12 @@ omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* componen
 
 }
 
-/* Based on allocbufs from omxtx.
-   Buffers are connected as a one-way linked list using pAppPrivate as the pointer to the next element */
+/**
+ * Allocates a buffer for the respective component and port. 
+   Buffers are connected as a one-way linked list using pAppPrivate as the pointer to the next element
+ * @param component
+ * @param port
+ */
 void
 omx_alloc_buffers(struct omx_component_t *component, int port) 
 {
@@ -299,17 +304,29 @@ omx_alloc_buffers(struct omx_component_t *component, int port)
         end = (OMX_BUFFERHEADERTYPE **) &((*end)->pAppPrivate);
     }
 
+    //initialise the buffer state in a thread safe way
     if (portdef.eDir == OMX_DirInput) { 
+        pthread_mutex_lock(&component->buf_in_mutex);
+        component->buf_in_notempty = 1;
+        pthread_cond_signal(&component->buf_in_notempty_cv);
         component->in_buffers = list;
+        pthread_mutex_unlock(&component->buf_in_mutex);
     } else { 
+        pthread_mutex_lock(&component->buf_out_mutex);
+        component->buf_out_notempty = 1;
+        pthread_cond_signal(&component->buf_out_notempty_cv);
         component->out_buffers = list;
+        pthread_mutex_unlock(&component->buf_out_mutex);
     }
-    
     
     printf("[DEBUG] Allocating buffers for %s done\n", component->name);
 }
 
-/* Return the next free buffer, or NULL if none are free */
+/**
+ * Returns an empty buffer from the component, blocks if there is none
+ * @param component
+ * @return 
+ */
 OMX_BUFFERHEADERTYPE *
 omx_get_next_input_buffer(struct omx_component_t* component) {
     OMX_BUFFERHEADERTYPE *ret;
@@ -340,7 +357,12 @@ retry:
     return NULL;
 }
 
-/* Return the next empty buffer*/
+/**
+ * Returns an empty output buffer ready to be filled, blocks if 
+ * none are free
+ * @param component the component whose output buffer we desire
+ * @return  Pointer to the OMX_BUFFERHEADERTYPE struct for this buffer
+ */
 OMX_BUFFERHEADERTYPE *
 omx_get_next_output_buffer(struct omx_component_t* component) {
 
