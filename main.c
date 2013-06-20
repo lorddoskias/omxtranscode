@@ -94,8 +94,8 @@ int main(int argc, char **argv) {
     bcm_host_init();
     OERR(OMX_Init());
  
-    demux_ctx = init_demux(argv[1], argv[2]);
-    decoder_ctx = init_decode(demux_ctx);
+    demux_ctx = init_demux(argv[1]);
+    decoder_ctx = init_decode(demux_ctx, argv[2]);
 
     // start the thread that will pump packets in the queue 
     status = pthread_create(&demux_tid, &attr, demux_thread, demux_ctx);
