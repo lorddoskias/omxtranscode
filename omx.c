@@ -174,6 +174,7 @@ omx_encoder_fill_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
      * and we have to queue it and then consume it from within another thread 
      */
 
+    // queue the buffer to the pipeline's processed data queue
     encoded_packet = malloc(sizeof (*encoded_packet));
 
     encoded_packet->data_length = pBuffer->nFilledLen;
@@ -181,9 +182,9 @@ omx_encoder_fill_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
     memcpy(encoded_packet->data, pBuffer->pBuffer, pBuffer->nFilledLen);
     packet_queue_add_item(&component->pipe->encoded_video_queue, encoded_packet);
     
-    
     pBuffer->nFilledLen = 0; //prep buffer for return;
     
+    // return the buffer to the empty list
     pthread_mutex_lock(&component->buf_out_mutex);
     current = component->out_buffers;
     while (current && current->pAppPrivate)
@@ -201,7 +202,7 @@ omx_encoder_fill_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
     }
 
     pthread_mutex_unlock(&component->buf_out_mutex);
-
+    
     return OMX_ErrorNone;
 }
 
@@ -293,9 +294,8 @@ omx_alloc_buffers(struct omx_component_t *component, int port)
         OMX_U8 *buf;
 
         buf = vcos_malloc_aligned(portdef.nBufferSize, portdef.nBufferAlignment, "buffer");
-
+        
         OERR(OMX_UseBuffer(component->h, end, port, NULL, portdef.nBufferSize, buf));
-
         end = (OMX_BUFFERHEADERTYPE **) &((*end)->pAppPrivate);
     }
 
@@ -340,18 +340,19 @@ retry:
     return NULL;
 }
 
-/* Return the next full buffer*/
+/* Return the next empty buffer*/
 OMX_BUFFERHEADERTYPE *
 omx_get_next_output_buffer(struct omx_component_t* component) {
 
     OMX_BUFFERHEADERTYPE *ret = NULL, *prev = NULL;
 
-    pthread_mutex_lock(&component->buf_out_mutex);
-    while (component->buf_out_notempty == 0) {
-        pthread_cond_wait(&component->buf_out_notempty_cv, &component->buf_out_mutex);
-    }
-
     do {
+        pthread_mutex_lock(&component->buf_out_mutex);
+
+        while (component->buf_out_notempty == 0) {
+            pthread_cond_wait(&component->buf_out_notempty_cv, &component->buf_out_mutex);
+        }
+
         ret = component->out_buffers;
         //go to the end of the list
         while (ret && ret->pAppPrivate != NULL) {
@@ -360,14 +361,15 @@ omx_get_next_output_buffer(struct omx_component_t* component) {
         }
 
         if (ret) {
-            //if there is only 1 element in the list
+            //add as head
             if (prev == NULL)
                 component->out_buffers = ret->pAppPrivate;
             else
+                //add as tail
                 prev->pAppPrivate = ret->pAppPrivate;
 
             ret->pAppPrivate = NULL;
-        } else { 
+        } else {
             component->buf_out_notempty = 0;
         }
 
