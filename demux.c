@@ -43,9 +43,9 @@ extract_video_stream(AVFormatContext *fmt_ctx, AVStream *video_stream, struct av
     av_init_packet(&packet);
     packet.data = NULL;
     packet.size = 0;
-
+#ifdef 0
     output_file = fopen(ctx->output_filename, "w+b");
-
+#endif
     //start reading frames 
     while (av_read_frame(fmt_ctx, &packet) >= 0) {
 
@@ -58,8 +58,9 @@ extract_video_stream(AVFormatContext *fmt_ctx, AVStream *video_stream, struct av
             video_packet->data_length = packet.size;
             video_packet->data = malloc(packet.size);
             memcpy(video_packet->data, packet.data, packet.size);
+#ifdef 0
             fwrite(video_packet->data, sizeof (*video_packet->data), video_packet->data_length, output_file);
-            
+#endif            
             /* The best thing will be do actually add each and every packet into a 
              * private list in this loop and only when the duration in the queue is 
              * below a minimum signal a cond_var to continue demuxing. 
@@ -72,8 +73,9 @@ extract_video_stream(AVFormatContext *fmt_ctx, AVStream *video_stream, struct av
     }
     
     ctx->video_queue->queue_finished = 1;
-    
+#ifdef 0
     fclose(output_file);
+#endif
 }
 
 void 
