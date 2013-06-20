@@ -12,8 +12,9 @@
 extern "C" {
 #endif
 
-void *write_thread(void *ctx);
+void *consumer_thread(void *thread_ctx);
 void *decode_thread(void *ctx);
+void *writer_thread(void *thread_ctx);
 
 #ifdef	__cplusplus
 }

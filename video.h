@@ -15,6 +15,7 @@ extern "C" {
 #endif
 
     struct decode_ctx_t {
+        char *output_filename; //output files will be written here
         struct packet_queue_t *video_queue;
         struct packet_queue_t *audio_queue;
         struct omx_pipeline_t pipeline;

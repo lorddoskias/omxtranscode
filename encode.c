@@ -174,9 +174,6 @@ decode_thread(void *ctx) {
 
             OERR(OMX_EmptyThisBuffer(decoder_ctx->pipeline.video_decode.h, input_buffer));
             
-            if (decoder_ctx->pipeline.video_encode.port_settings_changed == 1) {
-                OERR(OMX_FillThisBuffer(decoder_ctx->pipeline.video_encode.h, omx_get_next_output_buffer(&decoder_ctx->pipeline.video_encode)));
-            }
         }
 
         packet_queue_free_item(current_packet);
@@ -196,21 +193,30 @@ decode_thread(void *ctx) {
    // omx_teardown_pipeline(&decoder_ctx->pipeline);
 }
 
+void *consumer_thread(void *thread_ctx) {
+    struct decode_ctx_t *ctx = (struct decode_ctx_t *) thread_ctx;
+
+    while (!ctx->video_queue->queue_finished || ctx->pipeline.encoded_video_queue.queue_count > 0) {
+        if (ctx->pipeline.video_encode.port_settings_changed == 1) {
+            OERR(OMX_FillThisBuffer(ctx->pipeline.video_encode.h, omx_get_next_output_buffer(&ctx->pipeline.video_encode)));
+        }
+    }
+}
+
 void *writer_thread(void *thread_ctx) {
 
     struct decode_ctx_t *ctx = (struct decode_ctx_t *) thread_ctx;
     int written;
     FILE *out_file;
 
-    out_file = fopen("movie.h264", "wb");
+    out_file = fopen(ctx->output_filename, "wb");
     if (out_file == NULL) {
         printf("error creating output file. DYING \n");
         exit(1);
     }
 
 
-    while (!ctx->video_queue->queue_finished) {
-
+    while (!ctx->video_queue->queue_finished || ctx->pipeline.encoded_video_queue.queue_count > 0) {
         struct packet_t *encoded_packet = packet_queue_get_next_item(&ctx->pipeline.encoded_video_queue);
         written = fwrite(encoded_packet->data, 1, encoded_packet->data_length, out_file);
         packet_queue_free_item(encoded_packet);
