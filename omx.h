@@ -8,8 +8,8 @@
 #ifndef OMX_H
 #define	OMX_H
 
-#include "include/interface/vcos/vcos.h"
-#include "include/IL/OMX_Broadcom.h"
+#include <interface/vcos/vcos.h>
+#include <IL/OMX_Broadcom.h>
 #include "packet_queue.h"
 
 #ifdef	__cplusplus

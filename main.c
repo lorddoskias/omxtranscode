@@ -20,8 +20,8 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include <string.h>
 #include <pthread.h>
 
-#include "include/bcm_host.h"
-#include "include/IL/OMX_Core.h"
+#include <bcm_host.h>
+#include <IL/OMX_Core.h>
 #include "packet_queue.h"
 #include "demux.h"
 #include "omx.h"

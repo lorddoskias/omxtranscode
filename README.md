@@ -22,10 +22,9 @@ Currently I make no effort to cleanup the OpenMax components. Hopefully this wil
 with the process of setting up openmax pipelines. 
 
 
-**MakeFile** - Currently I do not supply the make file since my configuration is: develop inside netbeans with
-the toolchain directly compiling on the PI. I have also moved the libraries and include file from the /opt/vc 
-directory into my local tree so that everything is seamless. Apart from this, this code should compile with the 
-default switches which are present in Makefile.include inside the /opt/vc/src/hello_pi dir.
+**MakeFile** - The included Makefile is designed for building omxtranscode on a Pi, with the Broadcom 
+include files in /opt/vc/include.  omxtranscode requires the libav/ffmpeg libraries - the libavformat-dev,
+libavcodec-dev and libavutil-dev packages in Raspbian.
 
 
 Copyright
