@@ -54,6 +54,22 @@ query_components() {
     OMX_Deinit();
 }
 
+static
+int
+mpeg2_codec_enabled(void) {
+    char response[512];
+
+    vc_gencmd_init();
+
+    vc_gencmd(response, sizeof (response), "codec_enabled MPG2");
+
+    if (strcmp(response, "MPG2=enabled") == 0) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 struct av_demux_t *
 init_demux(const char *input_file) {
     struct av_demux_t *demux_ctx;
@@ -82,6 +98,9 @@ init_decode(struct av_demux_t *demux_ctx, const char *output_file) {
     //copy the output file name
     decoder_ctx->output_filename = malloc(strlen(output_file) + 1);
     memcpy(decoder_ctx->output_filename, output_file, strlen(output_file) + 1);
+    
+    pthread_mutex_init(&decoder_ctx->is_running_mutex, NULL);
+    pthread_cond_init(&decoder_ctx->is_running_cv, NULL);
 
     return decoder_ctx;
 }
@@ -91,7 +110,6 @@ int main(int argc, char **argv) {
 
     pthread_t demux_tid = 0;
     pthread_t writer_tid = 0;
-    pthread_t consumer_tid = 0;
     pthread_t encoder_tid = 0;
     
     pthread_attr_t attr;
@@ -124,16 +142,10 @@ int main(int argc, char **argv) {
         fprintf(stderr,"Error creating file writer thread : %d\n", status);
     }
 
-    status = pthread_create(&consumer_tid, &attr, consumer_thread, decoder_ctx);
-    if (status) {
-        fprintf(stderr,"Error creating encoder filler thread : %d\n", status);
-    }
-    
     // block until the demux and decoder are finished finished
     pthread_join(demux_tid, NULL);
     pthread_join(encoder_tid, NULL);
     pthread_join(writer_tid, NULL);
-    pthread_join(consumer_tid, NULL);
     printf("the other two threads have terminating, i'm dying as well\n");
     
     // do any cleanup
