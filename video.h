@@ -21,8 +21,9 @@ extern "C" {
         struct omx_pipeline_t pipeline;
        
         int first_packet;
+        //FIXME: used to synchronise the encoded component
+        //move it to per-component
         pthread_mutex_t is_running_mutex;
-        int is_running;
         pthread_cond_t is_running_cv;
     };
 
