@@ -122,7 +122,7 @@ omx_event_handler(OMX_IN OMX_HANDLETYPE hComponent,
 
         case OMX_EventBufferFlag:
             if (nData2 & OMX_BUFFERFLAG_EOS) {
-                fprintf(stderr, "[EVENT] Got an EOS event on %s %p (port %d, d2 %x)\n", component->name, hComponent, (unsigned int) nData1, (unsigned int) nData2);
+                fprintf(stderr, "[EVENT] Got an EOS event on %s %p (port %d, d2 %x)\n", component->name, hComponent, nData1, nData2);
                 pthread_mutex_lock(&component->eos_mutex);
                 component->eos = 1;
                 pthread_cond_signal(&component->eos_cv);
@@ -136,13 +136,13 @@ omx_event_handler(OMX_IN OMX_HANDLETYPE hComponent,
             break;
 
         case OMX_EventParamOrConfigChanged:
-            fprintf(stderr, "[EVENT] OMX_EventParamOrConfigChanged on component \"%s\" - d1=%x, d2=%x\n", component->name, (unsigned int) nData1, (unsigned int) nData2);
+            fprintf(stderr, "[EVENT] OMX_EventParamOrConfigChanged on component \"%s\" - d1=%x, d2=%x\n", component->name, nData1, nData2);
             component->config_changed = 1;
             break;
 
         default:
             fprintf(stderr, "[EVENT] Got an event of type %x on %s %p (d1: %x, d2 %x)\n", eEvent,
-                    component->name, hComponent, (unsigned int) nData1, (unsigned int) nData2);
+                    component->name, hComponent, nData1, nData2);
     }
 
     return OMX_ErrorNone;
