@@ -22,8 +22,8 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include <unistd.h>
 #include <pthread.h>
 
-#include "include/libavformat/avformat.h"
-#include "include/libavutil/mathematics.h"
+#include <libavformat/avformat.h>
+#include <libavutil/mathematics.h>
 #include "demux.h"
 #include "packet_queue.h"
 
