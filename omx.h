@@ -77,10 +77,7 @@ extern "C" {
 
     struct omx_pipeline_t {
         struct omx_component_t video_decode;
-        struct omx_component_t video_scheduler;
-        struct omx_component_t video_render;
-        struct omx_component_t clock;
-        struct omx_component_t resize;
+        struct omx_component_t image_fx;
         struct omx_component_t video_encode;
         
         //holds processed packets from the encoder 

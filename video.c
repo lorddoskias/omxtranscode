@@ -23,6 +23,7 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include "video.h"
 #include "omx.h"
 
+#if 0
 void *
 video_thread(void *ctx) {
 
@@ -103,3 +104,4 @@ video_thread(void *ctx) {
 
     omx_teardown_pipeline(&decoder_ctx->pipeline);
 }
+#endif

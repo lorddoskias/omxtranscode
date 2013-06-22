@@ -467,7 +467,7 @@ omx_flush_tunnel(struct omx_component_t* source, int source_port, struct omx_com
   omx_send_command_and_wait(sink,OMX_CommandFlush,sink_port,NULL);
 }
 
-
+#if 0
 OMX_ERRORTYPE 
 omx_setup_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec)
 {
@@ -538,8 +538,9 @@ omx_setup_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec
   printf("[DEBUG] pipeline init done\n");
   return OMX_ErrorNone;
 }
+#endif
 
-
+#if 0
 void 
 omx_teardown_pipeline(struct omx_pipeline_t* pipe)
 {
@@ -547,12 +548,7 @@ omx_teardown_pipeline(struct omx_pipeline_t* pipe)
    int i=1;
 
    printf("[DEBUG] beginning pipeline teardown\n");
-   /* NOTE: Three events are sent after the previous command:
 
-[EVENT] Got an event of type 4 on video_decode 0x426a10 (d1: 83, d2 1)
-[EVENT] Got an event of type 4 on video_scheduler 0x430d10 (d1: b, d2 1)
-[EVENT] Got an event of type 4 on video_render 0x430b30 (d1: 5a, d2 1) 5a = port (90) 1 = OMX_BUFFERFLAG_EOS
-*/
 
    fprintf(stderr,"[vcodec] omx_teardown pipeline 2b\n");
    /* Flush entrance to pipeline */
@@ -632,36 +628,43 @@ disabled (but it completes before the video scheduler port disabling completes).
    fprintf(stderr,"[vcodec] omx_teardown pipeline 17\n");
 
 }
-
+#endif
 
 OMX_ERRORTYPE 
 omx_setup_encoding_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE video_codec)
 {
   OMX_VIDEO_PARAM_PORTFORMATTYPE format;
-
+  OMX_CONFIG_IMAGEFILTERPARAMSTYPE deinterlace_config;
+  OMX_PARAM_U32TYPE extra_buffers; //used by the decoder for the deinterlacer
+  
   packet_queue_init(&pipe->encoded_video_queue);
   
   omx_init_component(pipe, &pipe->video_decode, "OMX.broadcom.video_decode");
-  omx_init_component(pipe, &pipe->resize, "OMX.broadcom.resize");
+  omx_init_component(pipe, &pipe->image_fx, "OMX.broadcom.image_fx");
   omx_init_component(pipe, &pipe->video_encode, "OMX.broadcom.video_encode");
   
-  /* Configure video_decoder */
   omx_send_command_and_wait(&pipe->video_decode, OMX_CommandStateSet, OMX_StateIdle, NULL);
-
+  omx_send_command_and_wait(&pipe->image_fx, OMX_CommandStateSet, OMX_StateIdle, NULL);
+  
+  /* configure deinterlaces */
+  OMX_INIT_STRUCTURE(deinterlace_config);
+  deinterlace_config.nPortIndex = 191; //image_fx output
+  deinterlace_config.nNumParams = 1;
+  deinterlace_config.nParams[0] = 3; //omxtx uses this but got knows what it means
+  deinterlace_config.eImageFilter = OMX_ImageFilterDeInterlaceAdvanced;
+  OERR(OMX_SetConfig(pipe->image_fx.h,OMX_IndexConfigCommonImageFilterParameters, &deinterlace_config));
+  
+  /* Configure video_decoder */
   OMX_INIT_STRUCTURE(format);
   format.nPortIndex = 130;
   format.eCompressionFormat = video_codec;
-
   OERR(OMX_SetParameter(pipe->video_decode.h, OMX_IndexParamVideoPortFormat, &format));
 
-   /* Enable error concealment for H264 only - without this, HD channels don't work reliably */
- /* if (video_codec == OMX_VIDEO_CodingAVC) {
-     OMX_PARAM_BRCMVIDEODECODEERRORCONCEALMENTTYPE ec;
-     OMX_INIT_STRUCTURE(ec);
-     ec.bStartWithValidFrame = OMX_FALSE;
-     OERR(OMX_SetParameter(pipe->video_decode.h, OMX_IndexParamBrcmVideoDecodeErrorConcealment, &ec));
-  }
-*/
+  OMX_INIT_STRUCTURE(extra_buffers);
+  extra_buffers.nPortIndex = 131; //decoder output port
+  extra_buffers.nU32 = 3;
+  OERR(OMX_SetParameter(pipe->video_decode.h, OMX_IndexParamBrcmExtraBuffers,&extra_buffers));
+
   /* Enable video decoder input port */
   omx_send_command_and_wait0(&pipe->video_decode, OMX_CommandPortEnable, 130, NULL);
 
@@ -674,14 +677,12 @@ omx_setup_encoding_pipeline(struct omx_pipeline_t* pipe, OMX_VIDEO_CODINGTYPE vi
   /* Change video_decode to OMX_StateExecuting */
   omx_send_command_and_wait(&pipe->video_decode, OMX_CommandStateSet, OMX_StateExecuting, NULL);
 
-  /* the rest of the config will be done  in the main event loop
-   when the decoder has received port chagned event*/
-
   
   printf("[DEBUG] pipeline init done\n");
   return OMX_ErrorNone;
 }
 
+#if 0
 void 
 omx_teardown_encoding_pipeline(struct omx_pipeline_t* pipe)
 {
@@ -774,3 +775,4 @@ disabled (but it completes before the video scheduler port disabling completes).
    fprintf(stderr,"[vcodec] omx_teardown pipeline 17\n");
 
 }
+#endif
