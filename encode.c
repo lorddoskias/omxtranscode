@@ -60,7 +60,8 @@ decode_thread(void *context) {
             bytes_left -= copy_length;
 
             input_buffer->nFilledLen = copy_length;
-
+            input_buffer->nTimeStamp = pts_to_omx(current_packet->PTS);
+            
             if (ctx->first_packet) {
                 input_buffer->nFlags = OMX_BUFFERFLAG_STARTTIME;
                 ctx->first_packet = 0;
