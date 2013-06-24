@@ -54,39 +54,75 @@ init_streams_and_codecs(AVFormatContext *fmt_ctx, AVStream **video_stream, AVStr
 
 static
 void
-extract_video_stream(AVFormatContext *fmt_ctx, AVStream *video_stream, struct av_demux_t *ctx) {
-    AVPacket packet;
+extract_streams(AVFormatContext *fmt_ctx, AVStream *video_stream, AVStream *audio_stream, struct av_demux_t *ctx) {
+    AVPacket av_packet;
     AVRational omx_timebase = {1, 1000000};
-    struct packet_t *video_packet;
-   
-    av_init_packet(&packet);
-    packet.data = NULL;
-    packet.size = 0;
+    struct packet_t *packet;
+    long packet_count = 0;
+#if 0
+    FILE *out_file;
+    out_file = fopen("test-output.h264", "wb");
+#endif
+    av_init_packet(&av_packet);
+    av_packet.data = NULL;
+    av_packet.size = 0;
+
     //start reading frames 
-    while (av_read_frame(fmt_ctx, &packet) >= 0) {
+    while ((av_read_frame(fmt_ctx, &av_packet) >= 0)) {
 
-        if (packet.stream_index == video_stream->index) {
-            
-            video_packet = malloc(sizeof(*video_packet));
-            //taken from pidvbip - rescaling the pts, dunno if correct
-            video_packet->PTS = av_rescale_q(packet.pts, video_stream->time_base, omx_timebase);
-            video_packet->DTS = -1;
-            video_packet->data_length = packet.size;
-            video_packet->data = malloc(packet.size);
-            memcpy(video_packet->data, packet.data, packet.size);
+        if (av_packet.stream_index == video_stream->index) {
+            if (av_packet.pts == AV_NOPTS_VALUE) {
+                fprintf(stderr, "not pts found in video packet, dropping\n");
+            } else {
+                packet = malloc(sizeof (*packet));
+                //taken from pidvbip - rescaling the pts, dunno if correct
+                packet->PTS = av_rescale_q(av_packet.pts, video_stream->time_base, omx_timebase);
+                packet->DTS = -1;
+                packet->data_length = av_packet.size;
+                packet->data = malloc(av_packet.size);
+                memcpy(packet->data, av_packet.data, av_packet.size);
+#if 0
+                fwrite(av_packet.data, 1, av_packet.size, out_file);
+                packet_count++;
+                fprintf(stderr, "packets: v: %d\r", packet_count);
+#endif
+                /* Fixme: The best thing will be do actually add each and every packet into a 
+                 * private list in this loop and only when the duration in the queue is 
+                 * below a minimum signal a cond_var to continue demuxing. 
+                 */
+                while (ctx->video_queue->queue_count > 100) {
+                    usleep(100000);
+                }
+                packet_queue_add_item(ctx->video_queue, packet);
+            }
 
-            /* The best thing will be do actually add each and every packet into a 
-             * private list in this loop and only when the duration in the queue is 
-             * below a minimum signal a cond_var to continue demuxing. 
-             */
-            while (ctx->video_queue->queue_count > 100) { usleep(100000); } // FIXME
-            packet_queue_add_item(ctx->video_queue, video_packet);
-        } 
-        
-        av_free_packet(&packet);
+
+        } else if (av_packet.stream_index == audio_stream->index) {
+            if (av_packet.pts == AV_NOPTS_VALUE) {
+                fprintf(stderr, "not pts found in audio packet, dropping\n");
+            } else {
+                packet = malloc(sizeof (*packet));
+                packet->PTS = av_packet.pts;
+                packet->DTS = -1;
+                packet->data_length = av_packet.size;
+                packet->data = malloc(av_packet.size);
+                memcpy(packet->data, av_packet.data, av_packet.size);
+
+                while (ctx->audio_queue->queue_count > 100) {
+                    usleep(100000);
+                }
+                packet_queue_add_item(ctx->audio_queue, packet);
+            }
+        }
+
+        av_free_packet(&av_packet);
     }
-    
+
     ctx->video_queue->queue_finished = 1;
+    ctx->audio_queue->queue_finished = 1;
+#if 0
+    fclose(out_file);
+#endif
 }
 
 void 
@@ -100,6 +136,7 @@ void
     AVStream *audio_stream = NULL;
 
     av_register_all();
+    avformat_network_init();
     if (avformat_open_input(&fmt_ctx, demux_ctx->input_filename, NULL, NULL) < 0) {
         printf("Error opening input file: %s\n", demux_ctx->input_filename);
         abort();
@@ -115,7 +152,7 @@ void
         return NULL;
     }
 
-    extract_video_stream(fmt_ctx, video_stream, demux_ctx);
+    extract_streams(fmt_ctx, video_stream, audio_stream,  demux_ctx);
 
     //clean up 
     avcodec_close(video_codec_ctx);
