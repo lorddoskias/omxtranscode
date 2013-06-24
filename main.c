@@ -83,6 +83,10 @@ init_demux(const char *input_file) {
     demux_ctx->video_queue = malloc(sizeof(struct packet_queue_t));
     packet_queue_init(demux_ctx->video_queue);
     
+    demux_ctx->audio_queue = malloc(sizeof(struct packet_queue_t));
+    packet_queue_init(demux_ctx->audio_queue);
+    
+    
     return demux_ctx;
 }
 
@@ -131,7 +135,7 @@ int main(int argc, char **argv) {
     if(status) {
         fprintf(stderr,"Error creating demux thread : %d\n", status);
     }
-
+    
     status = pthread_create(&encoder_tid, &attr, decode_thread, decoder_ctx);
     if (status) {
         fprintf(stderr,"Error creating decoder thread : %d\n", status);
@@ -146,13 +150,13 @@ int main(int argc, char **argv) {
     pthread_join(demux_tid, NULL);
     pthread_join(encoder_tid, NULL);
     pthread_join(writer_tid, NULL);
-    printf("the other two threads have terminating, i'm dying as well\n");
-    
+    printf("the other threads have terminating, i'm dying as well\n");
     // do any cleanup
     OERR(OMX_Deinit());
     free(demux_ctx->input_filename);
     free(decoder_ctx->output_filename);
     free(demux_ctx->video_queue);
+    free(demux_ctx->audio_queue);
     free(demux_ctx); 
     pthread_attr_destroy(&attr);
 }
