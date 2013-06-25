@@ -20,12 +20,11 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include <string.h>
 #include <pthread.h>
 
-#include "include/bcm_host.h"
+#include "bcm_host.h"
 #include "include/IL/OMX_Core.h"
 #include "packet_queue.h"
 #include "demux.h"
 #include "omx.h"
-#include "video.h"
 #include "encode.h"
 
 /* Data types */
@@ -96,9 +95,11 @@ init_decode(struct av_demux_t *demux_ctx, const char *output_file) {
 
     decoder_ctx = malloc(sizeof (*decoder_ctx));
 
-    decoder_ctx->video_queue = demux_ctx->video_queue;
+    decoder_ctx->input_video_queue = demux_ctx->video_queue;
     decoder_ctx->first_packet = 1;
 
+    decoder_ctx->audio_codec = &demux_ctx->audio_codec;
+    
     //copy the output file name
     decoder_ctx->output_filename = malloc(strlen(output_file) + 1);
     memcpy(decoder_ctx->output_filename, output_file, strlen(output_file) + 1);
