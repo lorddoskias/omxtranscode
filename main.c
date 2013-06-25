@@ -97,7 +97,8 @@ init_decode(struct av_demux_t *demux_ctx, const char *output_file) {
 
     decoder_ctx->input_video_queue = demux_ctx->video_queue;
     decoder_ctx->first_packet = 1;
-
+    
+    decoder_ctx->audio_queue = demux_ctx->audio_queue;
     decoder_ctx->audio_codec = &demux_ctx->audio_codec;
     
     //copy the output file name
