@@ -8,6 +8,8 @@
 #ifndef DEMUX_H
 #define	DEMUX_H
 
+#include "avcodec.h"
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
