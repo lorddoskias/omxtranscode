@@ -22,8 +22,8 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include <unistd.h>
 #include <pthread.h>
 
-#include "include/libavformat/avformat.h"
-#include "include/libavutil/mathematics.h"
+#include "avformat.h"
+#include "mathematics.h"
 #include "demux.h"
 #include "packet_queue.h"
 
@@ -58,7 +58,6 @@ extract_streams(AVFormatContext *fmt_ctx, AVStream *video_stream, AVStream *audi
     AVPacket av_packet;
     AVRational omx_timebase = {1, 1000000};
     struct packet_t *packet;
-    long packet_count = 0;
 #if 0
     FILE *out_file;
     out_file = fopen("test-output.h264", "wb");
@@ -151,6 +150,13 @@ void
         printf("Error identifying video/audio streams\n");
         return NULL;
     }
+    
+    //we set the audio codec config from here to use 
+    //when muxing
+    demux_ctx->audio_codec.codec_id = audio_stream->codec->codec_id;
+    demux_ctx->audio_codec.bit_rate = audio_stream->codec->bit_rate;
+    demux_ctx->audio_codec.channels = audio_stream->codec->channels;        
+    demux_ctx->audio_codec.sample_rate = audio_stream->codec->sample_rate;
 
     extract_streams(fmt_ctx, video_stream, audio_stream,  demux_ctx);
 
