@@ -157,6 +157,7 @@ void
     demux_ctx->audio_codec.bit_rate = audio_stream->codec->bit_rate;
     demux_ctx->audio_codec.channels = audio_stream->codec->channels;        
     demux_ctx->audio_codec.sample_rate = audio_stream->codec->sample_rate;
+    demux_ctx->audio_codec.channels_layout = audio_stream->codec->channel_layout;
 
     extract_streams(fmt_ctx, video_stream, audio_stream,  demux_ctx);
 

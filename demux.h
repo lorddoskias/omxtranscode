@@ -18,6 +18,7 @@ extern "C" {
         enum CodecID codec_id;
         int sample_rate;
         int channels;
+        uint64_t channels_layout; 
         int bit_rate;
         enum AVSampleFormat sample_fmt;
     };
