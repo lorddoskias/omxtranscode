@@ -96,6 +96,7 @@ void omx_alloc_buffers(struct omx_component_t *component, int port);
 int omx_get_free_buffer_count(struct omx_component_t* component);
 void omx_teardown_pipeline(struct omx_pipeline_t* pipe);
 OMX_TICKS pts_to_omx(uint64_t pts);
+uint64_t omx_to_pts(OMX_TICKS ticks);
 
 #ifdef	__cplusplus
 }

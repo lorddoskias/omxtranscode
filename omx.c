@@ -34,6 +34,13 @@ OMX_TICKS pts_to_omx(uint64_t pts)
   ticks.nHighPart = pts >> 32;
   return ticks;
 };
+
+uint64_t omx_to_pts(OMX_TICKS ticks)
+{
+  uint64_t pts;
+  pts = ((uint64_t)ticks.nHighPart) << 32 | ticks.nLowPart;
+  return pts;
+};
 /**
  * Populates the omx_cmd_t struct inside the component struct
  * 
