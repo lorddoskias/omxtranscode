@@ -98,7 +98,7 @@ init_decode(struct av_demux_t *demux_ctx, const char *output_file) {
     decoder_ctx->input_video_queue = demux_ctx->video_queue;
     decoder_ctx->first_packet = 1;
     
-    decoder_ctx->audio_queue = demux_ctx->audio_queue;
+    decoder_ctx->processed_audio_queue = demux_ctx->audio_queue;
     decoder_ctx->audio_codec = &demux_ctx->audio_codec;
     
     //copy the output file name
@@ -156,9 +156,9 @@ int main(int argc, char **argv) {
     // do any cleanup
     OERR(OMX_Deinit());
     free(demux_ctx->input_filename);
-    free(decoder_ctx->output_filename);
     free(demux_ctx->video_queue);
     free(demux_ctx->audio_queue);
+    free(decoder_ctx->output_filename);
     free(demux_ctx); 
     pthread_attr_destroy(&attr);
 }
