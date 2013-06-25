@@ -203,6 +203,7 @@ omx_encoder_fill_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
     encoded_packet = malloc(sizeof (*encoded_packet));
 
     encoded_packet->data_length = pBuffer->nFilledLen;
+    encoded_packet->PTS = omx_to_pts(pBuffer->nTimeStamp);
     encoded_packet->data = malloc(pBuffer->nFilledLen);
     memcpy(encoded_packet->data, pBuffer->pBuffer, pBuffer->nFilledLen);
     packet_queue_add_item(&component->pipe->encoded_video_queue, encoded_packet);
