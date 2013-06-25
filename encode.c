@@ -21,7 +21,12 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 #include "omx.h"
 #include "packet_queue.h"
-#include "video.h"
+#include "avformat.h"
+#include "avcodec.h"
+#include "demux.h"
+#include "encode.h"
+
+#define ENCODED_BITRATE 2000000 //2 megabits
 
 /* will be feeding stuff into the encoding pipeline */
 void *
@@ -42,14 +47,15 @@ decode_thread(void *context) {
     omx_setup_encoding_pipeline(&ctx->pipeline, OMX_VIDEO_CodingMPEG2);
 
     // main loop that will poll packets and render
-    while (ctx->video_queue->queue_count != 0 || ctx->video_queue->queue_finished != 1) {
-        current_packet = packet_queue_get_next_item(ctx->video_queue);
+    while (ctx->input_video_queue->queue_count != 0 || ctx->input_video_queue->queue_finished != 1) {
+        //TODO a memory barrier is going to be needed so that we don't race
+        current_packet = packet_queue_get_next_item(ctx->input_video_queue);
         p = current_packet->data;
         bytes_left = current_packet->data_length;
 
         while (bytes_left > 0) {
 
-            fprintf(stderr, "OMX buffers: v: %02d/20, vcodec queue: %4d\r", omx_get_free_buffer_count(&ctx->pipeline.video_decode), ctx->video_queue->queue_count);
+            fprintf(stderr, "OMX buffers: v: %02d/20, vcodec queue: %4d\r", omx_get_free_buffer_count(&ctx->pipeline.video_decode), ctx->input_video_queue->queue_count);
             input_buffer = omx_get_next_input_buffer(&ctx->pipeline.video_decode); // This will block if there are no empty buffers
 
             // copy at most the length of the OMX buf
@@ -143,7 +149,7 @@ decode_thread(void *context) {
                 OMX_INIT_STRUCTURE(encoder_bitrate_config);
                 encoder_bitrate_config.nPortIndex = 201;
                 encoder_bitrate_config.eControlRate = OMX_Video_ControlRateVariable; //var bitrate
-                encoder_bitrate_config.nTargetBitrate = 2000000; //1 mbit 
+                encoder_bitrate_config.nTargetBitrate = ENCODED_BITRATE; //1 mbit 
                 OERR(OMX_SetParameter(ctx->pipeline.video_encode.h, OMX_IndexParamVideoBitrate, &encoder_bitrate_config));
                 
                 //setup tunnel from decoder to encoder
@@ -193,10 +199,115 @@ decode_thread(void *context) {
 }
 
 
-void *writer_thread(void *thread_ctx) {
+/* Add a audio output stream. */
+static
+AVStream *
+add_audio_stream(AVFormatContext *oc, struct decode_ctx_t *ctx) {
+    AVCodecContext *c;
+    AVStream *st;
+
+    st = avformat_new_stream(oc, NULL);
+    if (!st) {
+        fprintf(stderr, "Could not alloc stream\n");
+        exit(1);
+    }
+
+    c = st->codec;
+    c->codec_type = AVMEDIA_TYPE_AUDIO;
+    c->codec_id = ctx->audio_codec->codec_id;
+    c->sample_rate = ctx->audio_codec->sample_rate; 
+    c->bit_rate = ctx->audio_codec->bit_rate; 
+    c->channels = ctx->audio_codec->channels;
+    c->channel_layout = ctx->audio_codec->channels_layout;
+    c->sample_fmt = ctx->audio_codec->sample_fmt;
+    
+    return st;
+}
+
+
+
+/* Add a video output stream. */
+static
+AVStream *
+add_video_stream(AVFormatContext *oc) {
+    AVCodecContext *c;
+    AVStream *st;
+
+    st = avformat_new_stream(oc, NULL);
+    if (!st) {
+        fprintf(stderr, "Could not alloc stream\n");
+        exit(1);
+    }
+
+    c = st->codec;
+    c->codec_id =  CODEC_ID_H264;
+    c->codec_type = AVMEDIA_TYPE_VIDEO;        
+    /* Put sample parameters. */
+    c->bit_rate = ENCODED_BITRATE;
+    /* Resolution must be a multiple of two. */
+    c->width = 720;
+    c->height = 576;
+    c->time_base.den = 50; //should be 50 due to de-interlacing
+    c->time_base.num = 1;
+    c->pix_fmt = PIX_FMT_YUV420P;
+    /* Some formats want stream headers to be separate. */
+    if (oc->oformat->flags & AVFMT_GLOBALHEADER)
+        c->flags |= CODEC_FLAG_GLOBAL_HEADER;
+
+    return st;
+}
+
+
+static 
+void 
+write_audio_frame(AVFormatContext *oc, AVStream *st, struct decode_ctx_t *ctx)
+{
+    AVPacket pkt = { 0 }; // data and size must be 0;
+    struct packet_t *source_audio;
+    av_init_packet(&pkt);
+
+    source_audio = packet_queue_get_next_item(ctx->processed_audio_queue);
+    pkt.stream_index = st->index;
+    pkt.size = source_audio->data_length;
+    pkt.data = source_audio->data;
+    /* Write the compressed frame to the media file. */
+    if (av_interleaved_write_frame(oc, &pkt) != 0) {
+        fprintf(stderr, "Error while writing audio frame\n");
+        exit(1);
+    }
+    
+    packet_queue_free_item(source_audio);
+}
+
+
+void 
+*writer_thread(void *thread_ctx) {
 
     struct decode_ctx_t *ctx = (struct decode_ctx_t *) thread_ctx;
     int written;
+    AVFormatContext *output_context;
+    AVOutputFormat *fmt;
+    AVStream *video_stream = NULL, *audio_stream = NULL;
+
+
+    //choose a container
+    fmt = av_guess_format("mpeg", NULL, NULL);
+    if (!fmt) {
+        fprintf(stderr, "[DEBUG] Error guessing format, dying\n");
+        exit(1);
+    }
+    
+    output_context = avformat_alloc_context();
+    if(!output_context) {
+        fprintf(stderr, "[DEBUG] Error guessing format, dying\n");
+    }
+    
+    output_context->oformat = fmt;
+    snprintf(output_context->filename, sizeof(output_context->filename), "%s", ctx->output_filename);
+    
+
+    
+#if 0
     FILE *out_file;
 
     out_file = fopen(ctx->output_filename, "wb");
@@ -204,19 +315,44 @@ void *writer_thread(void *thread_ctx) {
         printf("error creating output file. DYING \n");
         exit(1);
     }
+#endif
+    if(fmt->video_codec != CODEC_ID_NONE) {
+        video_stream = add_video_stream(output_context);
+    }
+    //allocate the output file if the container requires it
+    if (!(fmt->flags & AVFMT_NOFILE)) {
+        fprintf(stderr, "[DEBUG] AVFMT_NOFILE set, allocating output container");
+        if (avio_open(&output_context->pb, ctx->output_filename, AVIO_FLAG_WRITE) < 0) {
+            fprintf(stderr, "[DEBUG] error creating the output context\n");
+            exit(1);
+        }
+    }
+    
+    //write stream header if any
+    avformat_write_header(output_context, NULL);
     
     pthread_mutex_lock(&ctx->is_running_mutex);
     pthread_cond_wait(&ctx->is_running_cv, &ctx->is_running_mutex);
     
-    while (!ctx->pipeline.video_encode.eos) {
-        //fill a buffer with data 
+    while (!ctx->pipeline.video_encode.eos || !ctx->processed_audio_queue->queue_finished) {
+        //FIXME a memory barrier is required here so that we don't race 
+        //on above variables 
+        
+        //fill a buffer with video data 
         OERR(OMX_FillThisBuffer(ctx->pipeline.video_encode.h, omx_get_next_output_buffer(&ctx->pipeline.video_encode)));
         
+        write_audio_frame(output_context, audio_stream, ctx); //write full audio frame 
+        
         //encoded_video_queue is being filled by the previous command
+        //FIXME no guarantee that we have a full frame per packet. 
         struct packet_t *encoded_packet = packet_queue_get_next_item(&ctx->pipeline.encoded_video_queue);
+#if 0
         written = fwrite(encoded_packet->data, 1, encoded_packet->data_length, out_file);
+#endif
         packet_queue_free_item(encoded_packet);
     }
 
+#if 0
     fclose(out_file);
+#endif
 }
