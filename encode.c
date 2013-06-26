@@ -346,7 +346,7 @@ void
     }
     
     if(fmt->audio_codec != CODEC_ID_NONE) {
-        audio_stream = add_audio_stream(output_context);
+        audio_stream = add_audio_stream(output_context, ctx);
     }
     
     //allocate the output file if the container requires it
