@@ -55,7 +55,7 @@ void packet_queue_free_packet(struct packet_t* item, int free_data)
     if (item == NULL)
         return;
     
-    if (item->data && free_data) {
+    if (item->data && free_data == 1) {
         free(item->data);
     }
 
