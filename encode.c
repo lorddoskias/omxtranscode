@@ -286,6 +286,30 @@ write_audio_frame(AVFormatContext *oc, AVStream *st, struct decode_ctx_t *ctx)
     packet_queue_free_packet(source_audio, 0);
 }
 
+static 
+void 
+write_video_frame(AVFormatContext *oc, AVStream *st, struct decode_ctx_t *ctx)
+{
+    AVPacket pkt = { 0 }; // data and size must be 0;
+    struct packet_t *source_video;
+    av_init_packet(&pkt);
+
+    //TODO Put encoded_video_queue into the main ctx
+    source_video = packet_queue_get_next_item(&ctx->pipeline.encoded_video_queue);
+    pkt.stream_index = st->index;
+    pkt.size = source_video->data_length;
+    pkt.data = source_video->data;
+    pkt.pts = source_video->PTS;
+    pkt.destruct = avpacket_destruct;
+    /* Write the compressed frame to the media file. */
+    if (av_interleaved_write_frame(oc, &pkt) != 0) {
+        fprintf(stderr, "Error while writing audio frame\n");
+        exit(1);
+    }
+    
+    packet_queue_free_packet(source_video, 0);
+}
+
 
 void 
 *writer_thread(void *thread_ctx) {
@@ -357,6 +381,8 @@ void
 #endif
         packet_queue_free_packet(encoded_packet, 1);
     }
+    
+    av_write_trailer(output_context);
 
 #if 0
     fclose(out_file);
