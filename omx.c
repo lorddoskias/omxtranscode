@@ -195,7 +195,11 @@ omx_encoder_fill_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
     struct omx_component_t* component = (struct omx_component_t*) pAppData;
     OMX_BUFFERHEADERTYPE *current;
     struct packet_t *encoded_packet;
-    /* we  get the buffer with encoded data here 
+    /* TODO Probably it will be required to buffer packets
+     * until we get a full frame - check that OMX_BUFFERFLAG_ENDOFFRAME 
+     * is set
+     * 
+     * we  get the buffer with encoded data here 
      * and we have to queue it and then consume it from within another thread 
      */
 
