@@ -205,16 +205,16 @@ omx_encoder_fill_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
      */
 
     // queue the buffer to the pipeline's processed data queue
-        encoded_packet = malloc(sizeof (*encoded_packet));
+    encoded_packet = malloc(sizeof (*encoded_packet));
 
-        encoded_packet->data_length = pBuffer->nFilledLen;
-        encoded_packet->flags = pBuffer->nFlags;
-        encoded_packet->PTS = omx_to_pts(pBuffer->nTimeStamp);
-        encoded_packet->data = malloc(pBuffer->nFilledLen);
-        memcpy(encoded_packet->data, pBuffer->pBuffer, pBuffer->nFilledLen);
-        packet_queue_add_item(&component->pipe->encoded_video_queue, encoded_packet);
+    encoded_packet->data_length = pBuffer->nFilledLen;
+    encoded_packet->flags = pBuffer->nFlags;
+    encoded_packet->PTS = omx_to_pts(pBuffer->nTimeStamp);
+    encoded_packet->data = malloc(pBuffer->nFilledLen);
+    memcpy(encoded_packet->data, pBuffer->pBuffer, pBuffer->nFilledLen);
+    packet_queue_add_item(&component->pipe->encoded_video_queue, encoded_packet);
 
-    
+
     pBuffer->nFilledLen = 0; //prep buffer for return;
     
     // return the buffer to the empty list
