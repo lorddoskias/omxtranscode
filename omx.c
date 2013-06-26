@@ -60,7 +60,7 @@ omx_send_command_and_wait0(struct omx_component_t* component, OMX_COMMANDTYPE Cm
     component->cmd.pCmdData = pCmdData;
     pthread_mutex_unlock(&component->cmd_queue_mutex);
 
-    OMX_SendCommand(component->h, Cmd, nParam, pCmdData);
+    OERR(OMX_SendCommand(component->h, Cmd, nParam, pCmdData));
 }
 /**
  * Blocks until the event handler signals the cond variable.
