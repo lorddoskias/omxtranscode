@@ -89,7 +89,7 @@ video_thread(void *ctx) {
             OERR(OMX_EmptyThisBuffer(decoder_ctx->pipeline.video_decode.h, buf));
         }
 
-        packet_queue_free_item(current_packet);
+        packet_queue_free_packet(current_packet, 1);
         current_packet = NULL;
     }
 
