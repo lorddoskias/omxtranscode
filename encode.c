@@ -182,7 +182,7 @@ decode_thread(void *context) {
             OERR(OMX_EmptyThisBuffer(ctx->pipeline.video_decode.h, input_buffer));
         }
 
-        packet_queue_free_item(current_packet);
+        packet_queue_free_packet(current_packet, 1);
         current_packet = NULL;
     }
 
@@ -224,7 +224,12 @@ add_audio_stream(AVFormatContext *oc, struct decode_ctx_t *ctx) {
     return st;
 }
 
-
+static
+void 
+avpacket_destruct(struct AVPacket *pkt) {
+    free(pkt->data);
+    pkt->data = NULL;
+}
 
 /* Add a video output stream. */
 static
@@ -270,13 +275,15 @@ write_audio_frame(AVFormatContext *oc, AVStream *st, struct decode_ctx_t *ctx)
     pkt.stream_index = st->index;
     pkt.size = source_audio->data_length;
     pkt.data = source_audio->data;
+    pkt.pts = source_audio->PTS;
+    pkt.destruct = avpacket_destruct;
     /* Write the compressed frame to the media file. */
     if (av_interleaved_write_frame(oc, &pkt) != 0) {
         fprintf(stderr, "Error while writing audio frame\n");
         exit(1);
     }
     
-    packet_queue_free_item(source_audio);
+    packet_queue_free_packet(source_audio, 0);
 }
 
 
@@ -284,7 +291,6 @@ void
 *writer_thread(void *thread_ctx) {
 
     struct decode_ctx_t *ctx = (struct decode_ctx_t *) thread_ctx;
-    int written;
     AVFormatContext *output_context;
     AVOutputFormat *fmt;
     AVStream *video_stream = NULL, *audio_stream = NULL;
@@ -347,9 +353,9 @@ void
         //FIXME no guarantee that we have a full frame per packet. 
         struct packet_t *encoded_packet = packet_queue_get_next_item(&ctx->pipeline.encoded_video_queue);
 #if 0
-        written = fwrite(encoded_packet->data, 1, encoded_packet->data_length, out_file);
+        fwrite(encoded_packet->data, 1, encoded_packet->data_length, out_file);
 #endif
-        packet_queue_free_item(encoded_packet);
+        packet_queue_free_packet(encoded_packet, 1);
     }
 
 #if 0
