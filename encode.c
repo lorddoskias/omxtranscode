@@ -113,6 +113,7 @@ decode_thread(void *context) {
             }
             
             if(ctx->pipeline.image_fx.port_settings_changed == 1) {
+                OMX_ERRORTYPE error;
                 ctx->pipeline.image_fx.port_settings_changed = 0;
                  //get info from deinterlacer output
                /* OMX_INIT_STRUCTURE(deinterlacer_config);
@@ -160,10 +161,14 @@ decode_thread(void *context) {
                 omx_send_command_and_wait1(&ctx->pipeline.video_encode, OMX_CommandPortEnable, 201, NULL);
 
                 omx_send_command_and_wait1(&ctx->pipeline.video_encode, OMX_CommandStateSet, OMX_StateIdle, NULL);
-                OMX_SendCommand(ctx->pipeline.image_fx.h, OMX_CommandPortEnable, 191, NULL);
-                OMX_SendCommand(ctx->pipeline.video_encode.h, OMX_CommandPortEnable, 200, NULL);
-                OMX_SendCommand(ctx->pipeline.video_encode.h, OMX_CommandStateSet, OMX_StateExecuting, NULL);
                 
+                //enable the two ports
+                omx_send_command_and_wait0(&ctx->pipeline.image_fx, OMX_CommandPortEnable, 191, NULL);
+                omx_send_command_and_wait0(&ctx->pipeline.video_encode, OMX_CommandPortEnable, 200, NULL);
+                omx_send_command_and_wait1(&ctx->pipeline.video_encode, OMX_CommandPortEnable, 200, NULL);
+                omx_send_command_and_wait1(&ctx->pipeline.image_fx, OMX_CommandPortEnable, 191, NULL);
+                
+                omx_send_command_and_wait(&ctx->pipeline.video_encode, OMX_CommandStateSet, OMX_StateExecuting, NULL);
                 fprintf(stderr, "finished configuring encoder\n");
             }
 
@@ -223,7 +228,7 @@ static
 void 
 avpacket_destruct(struct AVPacket *pkt) {
     free(pkt->data);
-    pkt->data = NULL;
+    pkt->data = 0x345678;
 }
 
 /* Add a video output stream. */
@@ -319,12 +324,13 @@ void
     fmt = av_guess_format("mpeg", NULL, NULL);
     if (!fmt) {
         fprintf(stderr, "[DEBUG] Error guessing format, dying\n");
-        exit(1);
+        exit(199);
     }
     
     output_context = avformat_alloc_context();
     if(!output_context) {
         fprintf(stderr, "[DEBUG] Error allocating context, dying\n");
+        exit(200);
     }
     
     output_context->oformat = fmt;
