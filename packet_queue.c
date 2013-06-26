@@ -19,7 +19,8 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include <pthread.h>
 #include "packet_queue.h"
 
-void packet_queue_init(struct packet_queue_t* queue) 
+void 
+packet_queue_init(struct packet_queue_t* queue) 
 {
     INIT_LIST_HEAD(&queue->queue);
     queue->queue_count = 0;
@@ -28,7 +29,8 @@ void packet_queue_init(struct packet_queue_t* queue)
     pthread_cond_init(&queue->queue_count_cv, NULL);
 }
 
-void packet_queue_add_item(struct packet_queue_t* queue, struct packet_t* packet) 
+void 
+packet_queue_add_item(struct packet_queue_t* queue, struct packet_t* packet) 
 {
     
     if (packet == NULL) {
@@ -50,7 +52,8 @@ void packet_queue_add_item(struct packet_queue_t* queue, struct packet_t* packet
     pthread_mutex_unlock(&queue->queue_mutex);
 }
 
-void packet_queue_free_packet(struct packet_t* item, int free_data) 
+void 
+packet_queue_free_packet(struct packet_t* item, int free_data) 
 {
     if (item == NULL)
         return;
@@ -62,7 +65,8 @@ void packet_queue_free_packet(struct packet_t* item, int free_data)
     free(item);
 }
 
-struct packet_t* packet_queue_get_next_item(struct packet_queue_t* queue) 
+struct packet_t* 
+packet_queue_get_next_item(struct packet_queue_t* queue) 
 {
     struct packet_t *item;
     
@@ -80,8 +84,32 @@ struct packet_t* packet_queue_get_next_item(struct packet_queue_t* queue)
     return item;
 }
 
+struct packet_t* 
+packet_queue_get_next_item_asynch(struct packet_queue_t* queue) 
+{
+    struct packet_t *item;
+
+    pthread_mutex_lock(&queue->queue_mutex);
+
+    if (list_empty(&queue->queue)) {
+        item = NULL;
+        goto exit;
+    }
+
+    item = list_entry(queue->queue.next, struct packet_t, list);
+
+    list_del(queue->queue.next);
+    queue->queue_count--;
+
+exit:
+    pthread_mutex_unlock(&queue->queue_mutex);
+
+    return item;
+}
+
 void 
-packet_flush_queue(struct packet_queue_t* queue) {
+packet_flush_queue(struct packet_queue_t* queue) 
+{
     
     /* Empty the queue */
     pthread_mutex_lock(&queue->queue_mutex);
