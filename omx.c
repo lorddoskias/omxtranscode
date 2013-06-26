@@ -204,13 +204,18 @@ omx_encoder_fill_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
      */
 
     // queue the buffer to the pipeline's processed data queue
-    encoded_packet = malloc(sizeof (*encoded_packet));
+    if (pBuffer->nFlags & OMX_BUFFERFLAG_ENDOFFRAME) {
+        encoded_packet = malloc(sizeof (*encoded_packet));
 
-    encoded_packet->data_length = pBuffer->nFilledLen;
-    encoded_packet->PTS = omx_to_pts(pBuffer->nTimeStamp);
-    encoded_packet->data = malloc(pBuffer->nFilledLen);
-    memcpy(encoded_packet->data, pBuffer->pBuffer, pBuffer->nFilledLen);
-    packet_queue_add_item(&component->pipe->encoded_video_queue, encoded_packet);
+        encoded_packet->data_length = pBuffer->nFilledLen;
+        encoded_packet->PTS = omx_to_pts(pBuffer->nTimeStamp);
+        encoded_packet->data = malloc(pBuffer->nFilledLen);
+        memcpy(encoded_packet->data, pBuffer->pBuffer, pBuffer->nFilledLen);
+        packet_queue_add_item(&component->pipe->encoded_video_queue, encoded_packet);
+    } else {
+        fprintf(stderr, "[DEBUG] Skipping partial frame\n");
+    }
+
     
     pBuffer->nFilledLen = 0; //prep buffer for return;
     
@@ -266,7 +271,7 @@ omx_disable_all_ports(struct omx_component_t* component)
 OMX_ERRORTYPE 
 omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* component, char* compname)
 {
-  memset(component,0,sizeof(component));
+  memset(component,0,sizeof(*component));
 
   pthread_mutex_init(&component->cmd_queue_mutex, NULL);
   pthread_cond_init(&component->cmd_queue_count_cv,NULL);
