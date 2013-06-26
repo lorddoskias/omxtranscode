@@ -226,13 +226,12 @@ add_audio_stream(AVFormatContext *oc, struct decode_ctx_t *ctx) {
 
 static
 void 
-avpacket_destruct(struct AVPacket *pkt) {
+avpacket_destruct(AVPacket *pkt) {
     if(pkt->data) {
         free(pkt->data);
     }
     pkt->data = NULL;
     pkt->destruct = av_destruct_packet;
-    av_free_packet(pkt);
 }
 
 /* Add a video output stream. */
@@ -309,6 +308,7 @@ write_video_frame(AVFormatContext *oc, AVStream *st, struct decode_ctx_t *ctx)
     pkt.size = source_video->data_length;
     pkt.data = source_video->data;
     pkt.pts = source_video->PTS;
+    pkt.dts = AV_NOPTS_VALUE;
     pkt.destruct = avpacket_destruct;
     /* Write the compressed frame to the media file. */
     if (av_interleaved_write_frame(oc, &pkt) != 0) {
