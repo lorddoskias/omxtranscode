@@ -114,7 +114,6 @@ decode_thread(void *context) {
             
             if(ctx->pipeline.image_fx.port_settings_changed == 1) {
                 ctx->pipeline.image_fx.port_settings_changed = 0;
-                OMX_CONFIG_FRAMERATETYPE framerate_config;
                  //get info from deinterlacer output
                /* OMX_INIT_STRUCTURE(deinterlacer_config);
                 deinterlacer_config.nPortIndex = 191;
@@ -140,11 +139,6 @@ decode_thread(void *context) {
                 encoder_format_config.eCompressionFormat = OMX_VIDEO_CodingAVC;
                 OERR(OMX_SetParameter(ctx->pipeline.video_encode.h, OMX_IndexParamVideoPortFormat, &encoder_format_config));
                 
-                OMX_INIT_STRUCTURE(framerate_config);
-                framerate_config.nPortIndex = 201;
-                framerate_config.xEncodeFramerate = 50;
-                OERR(OMX_SetConfig(ctx->pipeline.video_encode.h, OMX_IndexConfigVideoFramerate, &framerate_config));
-
                 //configure encoder output bitrate
                 OMX_INIT_STRUCTURE(encoder_bitrate_config);
                 encoder_bitrate_config.nPortIndex = 201;
@@ -168,12 +162,13 @@ decode_thread(void *context) {
                 omx_send_command_and_wait1(&ctx->pipeline.video_encode, OMX_CommandStateSet, OMX_StateIdle, NULL);
                 OMX_SendCommand(ctx->pipeline.image_fx.h, OMX_CommandPortEnable, 191, NULL);
                 OMX_SendCommand(ctx->pipeline.video_encode.h, OMX_CommandPortEnable, 200, NULL);
-                omx_send_command_and_wait(&ctx->pipeline.video_encode, OMX_CommandStateSet, OMX_StateExecuting, NULL);
+                OMX_SendCommand(ctx->pipeline.video_encode.h, OMX_CommandStateSet, OMX_StateExecuting, NULL);
                 
                 fprintf(stderr, "finished configuring encoder\n");
             }
 
             if(ctx->pipeline.video_encode.port_settings_changed == 1) {
+                fprintf(stderr, "encoder enabled\n");
                 ctx->pipeline.video_encode.port_settings_changed = 0;
                 //signal the consumer thread it can start polling for data
                 pthread_cond_signal(&ctx->is_running_cv);
@@ -329,7 +324,7 @@ void
     
     output_context = avformat_alloc_context();
     if(!output_context) {
-        fprintf(stderr, "[DEBUG] Error guessing format, dying\n");
+        fprintf(stderr, "[DEBUG] Error allocating context, dying\n");
     }
     
     output_context->oformat = fmt;
@@ -349,6 +344,11 @@ void
     if(fmt->video_codec != CODEC_ID_NONE) {
         video_stream = add_video_stream(output_context);
     }
+    
+    if(fmt->audio_codec != CODEC_ID_NONE) {
+        audio_stream = add_audio_stream(output_context);
+    }
+    
     //allocate the output file if the container requires it
     if (!(fmt->flags & AVFMT_NOFILE)) {
         fprintf(stderr, "[DEBUG] AVFMT_NOFILE set, allocating output container");
