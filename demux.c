@@ -134,8 +134,6 @@ void
     AVStream *video_stream = NULL;
     AVStream *audio_stream = NULL;
 
-    av_register_all();
-    avformat_network_init();
     if (avformat_open_input(&fmt_ctx, demux_ctx->input_filename, NULL, NULL) < 0) {
         printf("Error opening input file: %s\n", demux_ctx->input_filename);
         abort();

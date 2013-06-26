@@ -20,6 +20,7 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include <string.h>
 #include <pthread.h>
 
+#include "avformat.h"
 #include "bcm_host.h"
 #include "include/IL/OMX_Core.h"
 #include "packet_queue.h"
@@ -126,9 +127,13 @@ int main(int argc, char **argv) {
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
     
+    //global initialization of resources
+    //these must be here to prevent sporadic failures
     bcm_host_init();
     OERR(OMX_Init());
- 
+    av_register_all();
+    avformat_network_init();
+    
     demux_ctx = init_demux(argv[1]);
     decoder_ctx = init_decode(demux_ctx, argv[2]);
 
