@@ -227,8 +227,12 @@ add_audio_stream(AVFormatContext *oc, struct decode_ctx_t *ctx) {
 static
 void 
 avpacket_destruct(struct AVPacket *pkt) {
-    free(pkt->data);
-    pkt->data = 0x345678;
+    if(pkt->data) {
+        free(pkt->data);
+    }
+    pkt->data = NULL;
+    pkt->destruct = av_destruct_packet;
+    av_free_packet(pkt);
 }
 
 /* Add a video output stream. */
@@ -262,16 +266,17 @@ add_video_stream(AVFormatContext *oc) {
     return st;
 }
 
-
-static 
-void 
-write_audio_frame(AVFormatContext *oc, AVStream *st, struct decode_ctx_t *ctx)
-{
-    AVPacket pkt = { 0 }; // data and size must be 0;
+static
+void
+write_audio_frame(AVFormatContext *oc, AVStream *st, struct decode_ctx_t *ctx) {
+    AVPacket pkt = {0}; // data and size must be 0;
     struct packet_t *source_audio;
     av_init_packet(&pkt);
 
-    source_audio = packet_queue_get_next_item(ctx->processed_audio_queue);
+    if (!(source_audio = packet_queue_get_next_item_asynch(ctx->processed_audio_queue))) {
+        return;
+    }
+    
     pkt.stream_index = st->index;
     pkt.size = source_audio->data_length;
     pkt.data = source_audio->data;
@@ -279,10 +284,10 @@ write_audio_frame(AVFormatContext *oc, AVStream *st, struct decode_ctx_t *ctx)
     pkt.destruct = avpacket_destruct;
     /* Write the compressed frame to the media file. */
     if (av_interleaved_write_frame(oc, &pkt) != 0) {
-        fprintf(stderr, "Error while writing audio frame\n");
+        fprintf(stderr, "[DEBUG] Error while writing audio frame\n");
         exit(1);
     }
-    
+
     packet_queue_free_packet(source_audio, 0);
 }
 
@@ -294,8 +299,12 @@ write_video_frame(AVFormatContext *oc, AVStream *st, struct decode_ctx_t *ctx)
     struct packet_t *source_video;
     av_init_packet(&pkt);
 
+
     //TODO Put encoded_video_queue into the main ctx
-    source_video = packet_queue_get_next_item(&ctx->pipeline.encoded_video_queue);
+    if(!(source_video = packet_queue_get_next_item_asynch(&ctx->pipeline.encoded_video_queue))) { 
+        return;
+    }
+    
     pkt.stream_index = st->index;
     pkt.size = source_video->data_length;
     pkt.data = source_video->data;
@@ -303,7 +312,7 @@ write_video_frame(AVFormatContext *oc, AVStream *st, struct decode_ctx_t *ctx)
     pkt.destruct = avpacket_destruct;
     /* Write the compressed frame to the media file. */
     if (av_interleaved_write_frame(oc, &pkt) != 0) {
-        fprintf(stderr, "Error while writing audio frame\n");
+        fprintf(stderr, "[DEBUG] Error while writing audio frame\n");
         exit(1);
     }
     
@@ -319,9 +328,8 @@ void
     AVOutputFormat *fmt;
     AVStream *video_stream = NULL, *audio_stream = NULL;
 
-
     //choose a container
-    fmt = av_guess_format("mpeg", NULL, NULL);
+    fmt = av_guess_format("mpegts", NULL, NULL);
     if (!fmt) {
         fprintf(stderr, "[DEBUG] Error guessing format, dying\n");
         exit(199);
@@ -357,7 +365,7 @@ void
     
     //allocate the output file if the container requires it
     if (!(fmt->flags & AVFMT_NOFILE)) {
-        fprintf(stderr, "[DEBUG] AVFMT_NOFILE set, allocating output container");
+        fprintf(stderr, "[DEBUG] AVFMT_NOFILE set, allocating output container\n");
         if (avio_open(&output_context->pb, ctx->output_filename, AVIO_FLAG_WRITE) < 0) {
             fprintf(stderr, "[DEBUG] error creating the output context\n");
             exit(1);
