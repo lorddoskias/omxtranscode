@@ -372,18 +372,33 @@ void
         OERR(OMX_FillThisBuffer(ctx->pipeline.video_encode.h, omx_get_next_output_buffer(&ctx->pipeline.video_encode)));
         
         write_audio_frame(output_context, audio_stream, ctx); //write full audio frame 
-        
+        write_video_frame(output_context, video_stream, ctx); //write full video frame
         //encoded_video_queue is being filled by the previous command
         //FIXME no guarantee that we have a full frame per packet. 
-        struct packet_t *encoded_packet = packet_queue_get_next_item(&ctx->pipeline.encoded_video_queue);
+        
+        
 #if 0
+        struct packet_t *encoded_packet = packet_queue_get_next_item(&ctx->pipeline.encoded_video_queue);
         fwrite(encoded_packet->data, 1, encoded_packet->data_length, out_file);
-#endif
         packet_queue_free_packet(encoded_packet, 1);
+#endif
+        
     }
-    
+
     av_write_trailer(output_context);
 
+    //free all the resources
+    /* Free the streams. */
+    for (int i = 0; i < output_context->nb_streams; i++) {
+        av_freep(&output_context->streams[i]);
+    }
+
+    if (!(fmt->flags & AVFMT_NOFILE))
+        /* Close the output file. */
+        avio_close(output_context->pb);
+
+    /* free the stream */
+    av_free(output_context);
 #if 0
     fclose(out_file);
 #endif
