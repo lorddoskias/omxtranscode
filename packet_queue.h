@@ -25,6 +25,7 @@ struct packet_t
   struct list_head list;
   int64_t PTS;
   int64_t DTS;
+  uint32_t flags; //copy of OMX buffer flags
 };
 
 struct packet_queue_t

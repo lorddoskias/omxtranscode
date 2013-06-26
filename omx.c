@@ -26,6 +26,7 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 #include "omx.h"
 #include "packet_queue.h"
+#include "encode.h"
 
 OMX_TICKS pts_to_omx(uint64_t pts)
 {
@@ -204,17 +205,14 @@ omx_encoder_fill_buffer_done(OMX_IN OMX_HANDLETYPE hComponent,
      */
 
     // queue the buffer to the pipeline's processed data queue
-    if (pBuffer->nFlags & OMX_BUFFERFLAG_ENDOFFRAME) {
         encoded_packet = malloc(sizeof (*encoded_packet));
 
         encoded_packet->data_length = pBuffer->nFilledLen;
+        encoded_packet->flags = pBuffer->nFlags;
         encoded_packet->PTS = omx_to_pts(pBuffer->nTimeStamp);
         encoded_packet->data = malloc(pBuffer->nFilledLen);
         memcpy(encoded_packet->data, pBuffer->pBuffer, pBuffer->nFilledLen);
         packet_queue_add_item(&component->pipe->encoded_video_queue, encoded_packet);
-    } else {
-        fprintf(stderr, "[DEBUG] Skipping partial frame\n");
-    }
 
     
     pBuffer->nFilledLen = 0; //prep buffer for return;
