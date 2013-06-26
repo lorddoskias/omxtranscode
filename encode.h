@@ -15,12 +15,11 @@ extern "C" {
     struct decode_ctx_t {
         char *output_filename; //output files will be written here
         struct packet_queue_t *input_video_queue;
-        struct packet_queue_t *input_audio_queue;
+        struct packet_queue_t *processed_audio_queue;
         struct omx_pipeline_t pipeline;
        
         int first_packet;
-        //FIXME: used to synchronise the encoded component
-        //move it to per-component
+        //FIXME: used to synchronise the encoded component move it to per-component
         pthread_mutex_t is_running_mutex;
         pthread_cond_t is_running_cv;
         
