@@ -91,7 +91,7 @@ packet_flush_queue(struct packet_queue_t* queue) {
     list_for_each_safe(current_entry, n, &queue->queue) {
         current_packet = list_entry(current_entry, struct packet_t, list);
         list_del(current_entry);
-        packet_queue_free_item(current_packet);
+        packet_queue_free_packet(current_packet, 1);
     }
 
 
