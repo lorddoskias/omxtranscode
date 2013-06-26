@@ -50,12 +50,12 @@ void packet_queue_add_item(struct packet_queue_t* queue, struct packet_t* packet
     pthread_mutex_unlock(&queue->queue_mutex);
 }
 
-void packet_queue_free_item(struct packet_t* item) 
+void packet_queue_free_packet(struct packet_t* item, int free_data) 
 {
     if (item == NULL)
         return;
     
-    if (item->data) {
+    if (item->data && free_data) {
         free(item->data);
     }
 

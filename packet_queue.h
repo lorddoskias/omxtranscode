@@ -39,7 +39,7 @@ struct packet_queue_t
 
 void packet_queue_init(struct packet_queue_t* component);
 void packet_queue_add_item(struct packet_queue_t* component, struct packet_t* packet);
-void packet_queue_free_item(struct packet_t* item);
+void packet_queue_free_packet(struct packet_t* item, int free_data);
 struct packet_t* packet_queue_get_next_item(struct packet_queue_t* component);
 void packet_queue_flush(struct packet_queue_t* component);
 
