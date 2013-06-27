@@ -33,6 +33,7 @@ extern "C" {
         //Transcoder related stuff
         struct omx_pipeline_t pipeline;
         AVFormatContext *input_context;
+        int video_stream_index;
         char *output_filename; //output files will be written here
         struct audio_config_t audio_codec;
         int first_packet;

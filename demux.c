@@ -126,28 +126,31 @@ extract_streams(AVFormatContext *fmt_ctx, AVStream *video_stream, AVStream *audi
 }
 
 void 
-*demux_thread(void *ctx) {
+*demux_thread(void *context) {
     
-    struct transcoder_ctx_t *demux_ctx = (struct transcoder_ctx_t *) ctx;
+    struct transcoder_ctx_t *ctx = (struct transcoder_ctx_t *) context;
     AVCodecContext *video_codec_ctx = NULL;
     AVCodecContext *audio_codec_ctx = NULL;
     AVStream *video_stream = NULL;
     AVStream *audio_stream = NULL;
 
-    if (init_streams_and_codecs(demux_ctx->input_context, &video_stream, &audio_stream, &video_codec_ctx, &audio_codec_ctx) < 0) {
+    if (init_streams_and_codecs(ctx->input_context, &video_stream, &audio_stream, &video_codec_ctx, &audio_codec_ctx) < 0) {
         printf("Error identifying video/audio streams\n");
         return NULL;
     }
     
     //we set the audio codec config from here to use 
     //when muxing
-    demux_ctx->audio_codec.codec_id = audio_stream->codec->codec_id;
-    demux_ctx->audio_codec.bit_rate = audio_stream->codec->bit_rate;
-    demux_ctx->audio_codec.channels = audio_stream->codec->channels;        
-    demux_ctx->audio_codec.sample_rate = audio_stream->codec->sample_rate;
-    demux_ctx->audio_codec.channels_layout = audio_stream->codec->channel_layout;
+    ctx->audio_codec.codec_id = audio_stream->codec->codec_id;
+    ctx->audio_codec.bit_rate = audio_stream->codec->bit_rate;
+    ctx->audio_codec.channels = audio_stream->codec->channels;        
+    ctx->audio_codec.sample_rate = audio_stream->codec->sample_rate;
+    ctx->audio_codec.channels_layout = audio_stream->codec->channel_layout;
 
-    extract_streams(demux_ctx->input_context, video_stream, audio_stream,  demux_ctx);
+    //video stream 
+    ctx->video_stream_index = video_stream->index;
+    
+    extract_streams(ctx->input_context, video_stream, audio_stream,  ctx);
 
     //clean up 
     avcodec_close(video_codec_ctx);
