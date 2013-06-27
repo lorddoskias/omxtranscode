@@ -27,6 +27,7 @@ extern "C" {
         char *input_filename;
         struct packet_queue_t *video_queue;
         struct packet_queue_t *audio_queue;
+        AVFormatContext *input_context;
         
         struct audio_config_t audio_codec;
     };
