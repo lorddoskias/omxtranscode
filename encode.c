@@ -75,14 +75,18 @@ decode_thread(void *context) {
                 input_buffer->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN;
             }
             
+            if (current_packet->flags & AV_PKT_FLAG_KEY) {
+                input_buffer->nFlags |= OMX_BUFFERFLAG_SYNCFRAME;
+            }
+            
             if(bytes_left == 0) {
                 input_buffer->nFlags |= OMX_BUFFERFLAG_ENDOFFRAME;
             }
-
+            
             //configure the resizer after the decoder has got output
             if (ctx->pipeline.video_decode.port_settings_changed == 1) {
                 ctx->pipeline.video_decode.port_settings_changed = 0;
-
+#if 0
                 int x = 640;
                 int y = 480;
 
@@ -94,7 +98,7 @@ decode_thread(void *context) {
                 //the above code is used if resizer is used
                 
                 //get information about the decoded video
-                /*OMX_INIT_STRUCTURE(decoder_config);
+                OMX_INIT_STRUCTURE(decoder_config);
                 decoder_config.nPortIndex = 131;
                 OERR(OMX_GetParameter(ctx->pipeline.video_decode.h, OMX_IndexParamPortDefinition, &decoder_config));
                 
@@ -102,7 +106,7 @@ decode_thread(void *context) {
                 OERR(OMX_GetParameter(ctx->pipeline.image_fx.h, OMX_IndexParamPortDefinition, &decoder_config));
                 decoder_config.nPortIndex = 191;
                 OERR(OMX_GetParameter(ctx->pipeline.image_fx.h, OMX_IndexParamPortDefinition, &decoder_config));
-                */
+#endif
                 OERR(OMX_SetupTunnel(ctx->pipeline.video_decode.h, 131, ctx->pipeline.image_fx.h, 190));
                 omx_send_command_and_wait(&ctx->pipeline.video_decode, OMX_CommandPortEnable, 131, NULL);
                 omx_send_command_and_wait(&ctx->pipeline.image_fx, OMX_CommandPortEnable, 190, NULL);
@@ -114,8 +118,9 @@ decode_thread(void *context) {
             if(ctx->pipeline.image_fx.port_settings_changed == 1) {
                 OMX_ERRORTYPE error;
                 ctx->pipeline.image_fx.port_settings_changed = 0;
+#if 0
                  //get info from deinterlacer output
-               /* OMX_INIT_STRUCTURE(deinterlacer_config);
+                OMX_INIT_STRUCTURE(deinterlacer_config);
                 deinterlacer_config.nPortIndex = 191;
                 OERR(OMX_GetParameter(ctx->pipeline.image_fx.h, OMX_IndexParamPortDefinition, &deinterlacer_config));
                 
@@ -132,7 +137,7 @@ decode_thread(void *context) {
                 encoder_config.format.video.nStride = deinterlacer_config.format.image.nStride;
                 //and feed it 
                 OERR(OMX_SetParameter(ctx->pipeline.video_encode.h, OMX_IndexParamPortDefinition, &encoder_config));
-                */
+#endif
                 //configure encoder output format
                 OMX_INIT_STRUCTURE(encoder_format_config);
                 encoder_format_config.nPortIndex = 201; //encoder output port

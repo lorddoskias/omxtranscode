@@ -79,6 +79,7 @@ extract_streams(AVFormatContext *fmt_ctx, AVStream *video_stream, AVStream *audi
                 packet->DTS = -1;
                 packet->data_length = av_packet.size;
                 packet->data = malloc(av_packet.size);
+                packet->flags = av_packet.flags;
                 memcpy(packet->data, av_packet.data, av_packet.size);
 #if 0
                 fwrite(av_packet.data, 1, av_packet.size, out_file);
