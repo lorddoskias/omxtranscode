@@ -70,58 +70,40 @@ mpeg2_codec_enabled(void) {
     }
 }
 
-struct av_demux_t *
-init_demux(const char *input_file) {
-    struct av_demux_t *demux_ctx;
+struct transcoder_ctx_t *
+init_global_ctx(const char *input_file, const char *output_file) {
 
-    demux_ctx = malloc(sizeof (*demux_ctx));
+    struct transcoder_ctx_t *global_ctx = malloc(sizeof (*global_ctx));
 
     //copy the input file name
-    demux_ctx->input_filename = malloc(strlen(input_file) + 1);
-    memcpy(demux_ctx->input_filename, input_file, strlen(input_file) + 1);
+    global_ctx->input_filename = malloc(strlen(input_file) + 1);
+    memcpy(global_ctx->input_filename, input_file, strlen(input_file) + 1);
 
-    demux_ctx->video_queue = malloc(sizeof (struct packet_queue_t));
-    packet_queue_init(demux_ctx->video_queue);
+    global_ctx->output_filename = malloc(strlen(output_file) + 1);
+    memcpy(global_ctx->output_filename, output_file, strlen(output_file) + 1);
+    
+    global_ctx->input_video_queue = malloc(sizeof (struct packet_queue_t));
+    packet_queue_init(global_ctx->input_video_queue);
 
-    demux_ctx->audio_queue = malloc(sizeof (struct packet_queue_t));
-    packet_queue_init(demux_ctx->audio_queue);
+    global_ctx->processed_audio_queue = malloc(sizeof (struct packet_queue_t));
+    packet_queue_init(global_ctx->processed_audio_queue);
 
+    global_ctx->first_packet = 1;
+    pthread_mutex_init(&global_ctx->is_running_mutex, NULL);
+    pthread_cond_init(&global_ctx->is_running_cv, NULL);
 
-    if (avformat_open_input(&demux_ctx->input_context, demux_ctx->input_filename, NULL, NULL) < 0) {
-        printf("Error opening input file: %s\n", demux_ctx->input_filename);
+    if (avformat_open_input(&global_ctx->input_context, global_ctx->input_filename, NULL, NULL) < 0) {
+        printf("Error opening input file: %s\n", global_ctx->input_filename);
         abort();
     }
 
-    if (avformat_find_stream_info(demux_ctx->input_context, NULL) < 0) {
+    if (avformat_find_stream_info(global_ctx->input_context, NULL) < 0) {
         printf("error finding streams\n");
         abort();
     }
 
-    return demux_ctx;
+    return global_ctx;
 }
-
-struct decode_ctx_t *
-init_decode(struct av_demux_t *demux_ctx, const char *output_file) {
-    struct decode_ctx_t *decoder_ctx;
-
-    decoder_ctx = malloc(sizeof (*decoder_ctx));
-
-    decoder_ctx->input_video_queue = demux_ctx->video_queue;
-    decoder_ctx->first_packet = 1;
-    
-    decoder_ctx->processed_audio_queue = demux_ctx->audio_queue;
-    decoder_ctx->audio_codec = &demux_ctx->audio_codec;
-    
-    //copy the output file name
-    decoder_ctx->output_filename = malloc(strlen(output_file) + 1);
-    memcpy(decoder_ctx->output_filename, output_file, strlen(output_file) + 1);
-    
-    pthread_mutex_init(&decoder_ctx->is_running_mutex, NULL);
-    pthread_cond_init(&decoder_ctx->is_running_cv, NULL);
-
-    return decoder_ctx;
-}
-
 
 int main(int argc, char **argv) {
 
@@ -131,8 +113,7 @@ int main(int argc, char **argv) {
     
     pthread_attr_t attr;
     int status;
-    struct av_demux_t *demux_ctx;
-    struct decode_ctx_t *decoder_ctx;
+    struct transcoder_ctx_t *global_ctx;
     
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -144,21 +125,20 @@ int main(int argc, char **argv) {
     av_register_all();
     avformat_network_init();
     
-    demux_ctx = init_demux(argv[1]);
-    decoder_ctx = init_decode(demux_ctx, argv[2]);
+    global_ctx = init_global_ctx(argv[1], argv[2]);
 
     // start the thread that will pump packets in the queue 
-    status = pthread_create(&demux_tid, &attr, demux_thread, demux_ctx);
+    status = pthread_create(&demux_tid, &attr, demux_thread, global_ctx);
     if(status) {
         fprintf(stderr,"Error creating demux thread : %d\n", status);
     }
     
-    status = pthread_create(&encoder_tid, &attr, decode_thread, decoder_ctx);
+    status = pthread_create(&encoder_tid, &attr, decode_thread, global_ctx);
     if (status) {
         fprintf(stderr,"Error creating decoder thread : %d\n", status);
     }
      
-    status = pthread_create(&writer_tid, &attr, writer_thread, decoder_ctx);
+    status = pthread_create(&writer_tid, &attr, writer_thread, global_ctx);
     if (status) {
         fprintf(stderr,"Error creating file writer thread : %d\n", status);
     }
@@ -170,12 +150,15 @@ int main(int argc, char **argv) {
     printf("the other threads have terminating, i'm dying as well\n");
     // do any cleanup
     OERR(OMX_Deinit());
-    avformat_close_input(&demux_ctx->input_context);
-    free(demux_ctx->input_filename);
-    free(demux_ctx->video_queue);
-    free(demux_ctx->audio_queue);
-    free(decoder_ctx->output_filename);
-    free(demux_ctx); 
+    avformat_close_input(&global_ctx->input_context);
+    free(global_ctx->input_filename);
+    free(global_ctx->output_filename);
+    packet_queue_flush(global_ctx->input_video_queue);
+    free(global_ctx->input_video_queue);
+    packet_queue_flush(global_ctx->processed_audio_queue);
+    free(global_ctx->processed_audio_queue);
+    //FIXME: do not forget the per-component queue of processed video
+    free(global_ctx); 
     pthread_attr_destroy(&attr);
 }
 

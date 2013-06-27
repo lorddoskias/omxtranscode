@@ -23,16 +23,24 @@ extern "C" {
         enum AVSampleFormat sample_fmt;
     };
     
-    struct av_demux_t {
+    struct transcoder_ctx_t {
+        //global stuff
         char *input_filename;
-        struct packet_queue_t *video_queue;
-        struct packet_queue_t *audio_queue;
-        AVFormatContext *input_context;
+        struct packet_queue_t *input_video_queue;
+        struct packet_queue_t *processed_audio_queue;
         
+        //Transcoder related stuff
+        struct omx_pipeline_t pipeline;
+        AVFormatContext *input_context;
+        char *output_filename; //output files will be written here
         struct audio_config_t audio_codec;
+        int first_packet;
+        //FIXME: used to synchronise the encoded component move it to per-component
+        pthread_mutex_t is_running_mutex;
+        pthread_cond_t is_running_cv;
     };
 
-    void *demux_thread(void *ctx);
+void *demux_thread(void *ctx);
 
 #ifdef	__cplusplus
 }

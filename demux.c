@@ -54,7 +54,7 @@ init_streams_and_codecs(AVFormatContext *fmt_ctx, AVStream **video_stream, AVStr
 
 static
 void
-extract_streams(AVFormatContext *fmt_ctx, AVStream *video_stream, AVStream *audio_stream, struct av_demux_t *ctx) {
+extract_streams(AVFormatContext *fmt_ctx, AVStream *video_stream, AVStream *audio_stream, struct transcoder_ctx_t *ctx) {
     AVPacket av_packet;
     AVRational omx_timebase = {1, 1000000};
     struct packet_t *packet;
@@ -89,10 +89,10 @@ extract_streams(AVFormatContext *fmt_ctx, AVStream *video_stream, AVStream *audi
                  * private list in this loop and only when the duration in the queue is 
                  * below a minimum signal a cond_var to continue demuxing. 
                  */
-                while (ctx->video_queue->queue_count > 100) {
+                while (ctx->input_video_queue->queue_count > 100) {
                     usleep(100000);
                 }
-                packet_queue_add_item(ctx->video_queue, packet);
+                packet_queue_add_item(ctx->input_video_queue, packet);
             }
 
 
@@ -107,18 +107,18 @@ extract_streams(AVFormatContext *fmt_ctx, AVStream *video_stream, AVStream *audi
                 packet->data = malloc(av_packet.size);
                 memcpy(packet->data, av_packet.data, av_packet.size);
 
-                while (ctx->audio_queue->queue_count > 100) {
+                while (ctx->processed_audio_queue->queue_count > 100) {
                     usleep(100000);
                 }
-                packet_queue_add_item(ctx->audio_queue, packet);
+                packet_queue_add_item(ctx->processed_audio_queue, packet);
             }
         }
 
         av_free_packet(&av_packet);
     }
 
-    ctx->video_queue->queue_finished = 1;
-    ctx->audio_queue->queue_finished = 1;
+    ctx->input_video_queue->queue_finished = 1;
+    ctx->processed_audio_queue->queue_finished = 1;
 #if 0
     fclose(out_file);
 #endif
@@ -127,7 +127,7 @@ extract_streams(AVFormatContext *fmt_ctx, AVStream *video_stream, AVStream *audi
 void 
 *demux_thread(void *ctx) {
     
-    struct av_demux_t *demux_ctx = (struct av_demux_t *) ctx;
+    struct transcoder_ctx_t *demux_ctx = (struct transcoder_ctx_t *) ctx;
     AVCodecContext *video_codec_ctx = NULL;
     AVCodecContext *audio_codec_ctx = NULL;
     AVStream *video_stream = NULL;
