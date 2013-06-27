@@ -206,71 +206,68 @@ decode_thread(void *context) {
 
 static 
 AVFormatContext *
-makeoutputcontext(AVFormatContext *ic, const char *oname, int idx, const OMX_PARAM_PORTDEFINITIONTYPE *prt) {
+init_output_context(const struct transcoder_ctx_t *ctx) {
     AVFormatContext *oc;
     AVOutputFormat *fmt;
-    int i;
-    AVStream *iflow, *oflow;
+    AVStream *input_stream, *output_stream;
     AVCodec *c;
     AVCodecContext *cc;
-    const OMX_VIDEO_PORTDEFINITIONTYPE *viddef;
-    int streamindex = 0;
 
-    viddef = &prt->format.video;
-
-    fmt = av_guess_format(NULL, oname, NULL);
+    fmt = av_guess_format("mpegts", NULL, NULL);
     if (!fmt) {
-        fprintf(stderr, "Can't guess format for %s; defaulting to "
-                "MPEG\n",
-                oname);
-        fmt = av_guess_format(NULL, "MPEG", NULL);
-    }
-    if (!fmt) {
-        fprintf(stderr, "Failed even that.  Bye bye.\n");
-        exit(1);
+        fprintf(stderr, "[DEBUG] Error guessing format, dying\n");
+        exit(199);
     }
 
     oc = avformat_alloc_context();
     if (!oc) {
-        fprintf(stderr, "Failed to alloc outputcontext\n");
-        exit(1);
+        fprintf(stderr, "[DEBUG] Error allocating context, dying\n");
+        exit(200);
     }
+    
     oc->oformat = fmt;
-    snprintf(oc->filename, sizeof (oc->filename), "%s", oname);
+    snprintf(oc->filename, sizeof(oc->filename), "%s", ctx->output_filename);
     oc->debug = 1;
-    oc->start_time_realtime = ic->start_time;
-    oc->start_time = ic->start_time;
+    oc->start_time_realtime = ctx->input_context->start_time;
+    oc->start_time = ctx->input_context->start_time;
     oc->duration = 0;
     oc->bit_rate = 0;
 
-    for (i = 0; i < ic->nb_streams; i++) {
-        iflow = ic->streams[i];
-        if (i == idx) { /* My new H.264 stream. */
+    for (int i = 0; i < ctx->input_context->nb_streams; i++) {
+        input_stream = ctx->input_context->streams[i];
+        if (input_stream->index == ctx->video_stream_index) {
+            //copy stuff from input video index
             c = avcodec_find_encoder(CODEC_ID_H264);
-            oflow = avformat_new_stream(oc, c);
-            cc = oflow->codec;
+            output_stream = avformat_new_stream(oc, c);
+            cc = output_stream->codec;
+            cc->width = input_stream->codec->width;
+            cc->height = input_stream->codec->height;
+#if 0       
             cc->width = viddef->nFrameWidth;
             cc->height = viddef->nFrameHeight;
+#endif
             cc->codec_id = CODEC_ID_H264;
             cc->codec_type = AVMEDIA_TYPE_VIDEO;
             cc->bit_rate = ENCODED_BITRATE;
-            cc->time_base = iflow->codec->time_base;
+            cc->time_base = input_stream->codec->time_base;
 
-            oflow->avg_frame_rate = iflow->avg_frame_rate;
-            oflow->r_frame_rate = iflow->r_frame_rate;
-            oflow->start_time = AV_NOPTS_VALUE;
+            output_stream->avg_frame_rate = input_stream->avg_frame_rate;
+            output_stream->r_frame_rate = input_stream->r_frame_rate;
+            output_stream->start_time = AV_NOPTS_VALUE;
 
-        } else { /* Something pre-existing. */
-            c = avcodec_find_encoder(iflow->codec->codec_id);
-            oflow = avformat_new_stream(oc, c);
-            avcodec_copy_context(oflow->codec, iflow->codec);
+        } else if (input_stream->codec->codec_type == AVMEDIA_TYPE_AUDIO) { 
+            /* i care only about audio */
+            c = avcodec_find_encoder(input_stream->codec->codec_id);
+            output_stream = avformat_new_stream(oc, c);
+            avcodec_copy_context(output_stream->codec, input_stream->codec);
             /* Apparently fixes a crash on .mkvs with attachments: */
-            av_dict_copy(&oflow->metadata, iflow->metadata, 0);
+            av_dict_copy(&output_stream->metadata, input_stream->metadata, 0);
             /* Reset the codec tag so as not to cause problems with output format */
-            oflow->codec->codec_tag = 0;
+            output_stream->codec->codec_tag = 0;
         }
     }
-    for (i = 0; i < oc->nb_streams; i++) {
+    
+    for (int i = 0; i < oc->nb_streams; i++) {
         if (oc->oformat->flags & AVFMT_GLOBALHEADER)
             oc->streams[i]->codec->flags
                 |= CODEC_FLAG_GLOBAL_HEADER;
@@ -278,34 +275,17 @@ makeoutputcontext(AVFormatContext *ic, const char *oname, int idx, const OMX_PAR
             oc->streams[i]->codec->sample_rate = 48000; /* ish */
     }
 
+    if (!(fmt->flags & AVFMT_NOFILE)) {
+        fprintf(stderr, "[DEBUG] AVFMT_NOFILE set, allocating output container\n");
+        if (avio_open(&oc->pb, ctx->output_filename, AVIO_FLAG_WRITE) < 0) {
+            fprintf(stderr, "[DEBUG] error creating the output context\n");
+            exit(1);
+        }
+    }
+    
     return oc;
 }
 
-
-/* Add a audio output stream. */
-static
-AVStream *
-add_audio_stream(AVFormatContext *oc, struct transcoder_ctx_t *ctx) {
-    AVCodecContext *c;
-    AVStream *st;
-
-    st = avformat_new_stream(oc, NULL);
-    if (!st) {
-        fprintf(stderr, "Could not alloc stream\n");
-        exit(1);
-    }
-
-    c = st->codec;
-    c->codec_type = AVMEDIA_TYPE_AUDIO;
-    c->codec_id = ctx->audio_codec.codec_id;
-    c->sample_rate = ctx->audio_codec.sample_rate; 
-    c->bit_rate = ctx->audio_codec.bit_rate; 
-    c->channels = ctx->audio_codec.channels;
-    c->channel_layout = ctx->audio_codec.channels_layout;
-    c->sample_fmt = ctx->audio_codec.sample_fmt;
-    
-    return st;
-}
 
 static
 void 
@@ -315,37 +295,6 @@ avpacket_destruct(AVPacket *pkt) {
     }
     pkt->data = NULL;
     pkt->destruct = av_destruct_packet;
-}
-
-/* Add a video output stream. */
-static
-AVStream *
-add_video_stream(AVFormatContext *oc) {
-    AVCodecContext *c;
-    AVStream *st;
-
-    st = avformat_new_stream(oc, NULL);
-    if (!st) {
-        fprintf(stderr, "Could not alloc stream\n");
-        exit(1);
-    }
-
-    c = st->codec;
-    c->codec_id =  CODEC_ID_H264;
-    c->codec_type = AVMEDIA_TYPE_VIDEO;        
-    /* Put sample parameters. */
-    c->bit_rate = ENCODED_BITRATE;
-    /* Resolution must be a multiple of two. */
-    c->width = 720;
-    c->height = 576;
-    c->time_base.den = 50; //should be 50 due to de-interlacing
-    c->time_base.num = 1;
-    c->pix_fmt = PIX_FMT_YUV420P;
-    /* Some formats want stream headers to be separate. */
-    if (oc->oformat->flags & AVFMT_GLOBALHEADER)
-        c->flags |= CODEC_FLAG_GLOBAL_HEADER;
-
-    return st;
 }
 
 static
@@ -407,27 +356,8 @@ void
 *writer_thread(void *thread_ctx) {
 
     struct transcoder_ctx_t *ctx = (struct transcoder_ctx_t *) thread_ctx;
-    AVFormatContext *output_context;
-    AVOutputFormat *fmt;
     AVStream *video_stream = NULL, *audio_stream = NULL;
-
-    //choose a container
-    fmt = av_guess_format("mpegts", NULL, NULL);
-    if (!fmt) {
-        fprintf(stderr, "[DEBUG] Error guessing format, dying\n");
-        exit(199);
-    }
-    
-    output_context = avformat_alloc_context();
-    if(!output_context) {
-        fprintf(stderr, "[DEBUG] Error allocating context, dying\n");
-        exit(200);
-    }
-    
-    output_context->oformat = fmt;
-    snprintf(output_context->filename, sizeof(output_context->filename), "%s", ctx->output_filename);
-    
-
+    AVFormatContext *output_context = init_output_context(ctx);
     
 #if 0
     FILE *out_file;
@@ -438,22 +368,6 @@ void
         exit(1);
     }
 #endif
-    if(fmt->video_codec != CODEC_ID_NONE) {
-        video_stream = add_video_stream(output_context);
-    }
-    
-    if(fmt->audio_codec != CODEC_ID_NONE) {
-        audio_stream = add_audio_stream(output_context, ctx);
-    }
-    
-    //allocate the output file if the container requires it
-    if (!(fmt->flags & AVFMT_NOFILE)) {
-        fprintf(stderr, "[DEBUG] AVFMT_NOFILE set, allocating output container\n");
-        if (avio_open(&output_context->pb, ctx->output_filename, AVIO_FLAG_WRITE) < 0) {
-            fprintf(stderr, "[DEBUG] error creating the output context\n");
-            exit(1);
-        }
-    }
     
     //write stream header if any
     avformat_write_header(output_context, NULL);
@@ -491,7 +405,7 @@ void
         av_freep(&output_context->streams[i]);
     }
 
-    if (!(fmt->flags & AVFMT_NOFILE))
+    if (!(output_context->oformat->flags & AVFMT_NOFILE))
         /* Close the output file. */
         avio_close(output_context->pb);
 
