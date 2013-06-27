@@ -128,23 +128,12 @@ void
 *demux_thread(void *ctx) {
     
     struct av_demux_t *demux_ctx = (struct av_demux_t *) ctx;
-    AVFormatContext *fmt_ctx = NULL;
     AVCodecContext *video_codec_ctx = NULL;
     AVCodecContext *audio_codec_ctx = NULL;
     AVStream *video_stream = NULL;
     AVStream *audio_stream = NULL;
 
-    if (avformat_open_input(&fmt_ctx, demux_ctx->input_filename, NULL, NULL) < 0) {
-        printf("Error opening input file: %s\n", demux_ctx->input_filename);
-        abort();
-    }
-
-    if (avformat_find_stream_info(fmt_ctx, NULL) < 0) {
-        printf("error finding streams\n");
-        abort();
-    }
-
-    if (init_streams_and_codecs(fmt_ctx, &video_stream, &audio_stream, &video_codec_ctx, &audio_codec_ctx) < 0) {
+    if (init_streams_and_codecs(demux_ctx->input_context, &video_stream, &audio_stream, &video_codec_ctx, &audio_codec_ctx) < 0) {
         printf("Error identifying video/audio streams\n");
         return NULL;
     }
@@ -157,12 +146,11 @@ void
     demux_ctx->audio_codec.sample_rate = audio_stream->codec->sample_rate;
     demux_ctx->audio_codec.channels_layout = audio_stream->codec->channel_layout;
 
-    extract_streams(fmt_ctx, video_stream, audio_stream,  demux_ctx);
+    extract_streams(demux_ctx->input_context, video_stream, audio_stream,  demux_ctx);
 
     //clean up 
     avcodec_close(video_codec_ctx);
     avcodec_close(audio_codec_ctx);
-    avformat_close_input(&fmt_ctx);
     
     return NULL;
 

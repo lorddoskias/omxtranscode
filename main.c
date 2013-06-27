@@ -73,20 +73,30 @@ mpeg2_codec_enabled(void) {
 struct av_demux_t *
 init_demux(const char *input_file) {
     struct av_demux_t *demux_ctx;
-    
-    demux_ctx = malloc(sizeof(*demux_ctx));
-    
+
+    demux_ctx = malloc(sizeof (*demux_ctx));
+
     //copy the input file name
     demux_ctx->input_filename = malloc(strlen(input_file) + 1);
     memcpy(demux_ctx->input_filename, input_file, strlen(input_file) + 1);
-    
-    demux_ctx->video_queue = malloc(sizeof(struct packet_queue_t));
+
+    demux_ctx->video_queue = malloc(sizeof (struct packet_queue_t));
     packet_queue_init(demux_ctx->video_queue);
-    
-    demux_ctx->audio_queue = malloc(sizeof(struct packet_queue_t));
+
+    demux_ctx->audio_queue = malloc(sizeof (struct packet_queue_t));
     packet_queue_init(demux_ctx->audio_queue);
-    
-    
+
+
+    if (avformat_open_input(&demux_ctx->input_context, demux_ctx->input_filename, NULL, NULL) < 0) {
+        printf("Error opening input file: %s\n", demux_ctx->input_filename);
+        abort();
+    }
+
+    if (avformat_find_stream_info(demux_ctx->input_context, NULL) < 0) {
+        printf("error finding streams\n");
+        abort();
+    }
+
     return demux_ctx;
 }
 
@@ -160,6 +170,7 @@ int main(int argc, char **argv) {
     printf("the other threads have terminating, i'm dying as well\n");
     // do any cleanup
     OERR(OMX_Deinit());
+    avformat_close_input(&demux_ctx->input_context);
     free(demux_ctx->input_filename);
     free(demux_ctx->video_queue);
     free(demux_ctx->audio_queue);
