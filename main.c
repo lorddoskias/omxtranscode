@@ -28,8 +28,8 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include "omx.h"
 #include "encode.h"
 
-/* Data types */
-
+//no need for an .h file just for this prototype
+void *writer_thread(void *thread_ctx);
 
 static
 void

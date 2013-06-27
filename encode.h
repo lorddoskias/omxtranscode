@@ -12,9 +12,9 @@
 extern "C" {
 #endif
     
-void *consumer_thread(void *thread_ctx);
+#define ENCODED_BITRATE 2000000 //2 megabits
+    
 void *decode_thread(void *ctx);
-void *writer_thread(void *thread_ctx);
 
 #ifdef	__cplusplus
 }
