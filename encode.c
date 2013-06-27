@@ -175,7 +175,7 @@ decode_thread(void *context) {
                 fprintf(stderr, "encoder enabled\n");
                 ctx->pipeline.video_encode.port_settings_changed = 0;
                 //signal the consumer thread it can start polling for data
-                pthread_cond_signal(&ctx->is_running_cv);
+                pthread_cond_signal(&ctx->pipeline.video_encode.is_running_cv);
             }
             
             OERR(OMX_EmptyThisBuffer(ctx->pipeline.video_decode.h, input_buffer));
@@ -199,8 +199,9 @@ decode_thread(void *context) {
 
 //STUF ABOUT THE WRITER THREAD BELOW THIS LINE
 
-static AVFormatContext *makeoutputcontext(AVFormatContext *ic,
-        const char *oname, int idx, const OMX_PARAM_PORTDEFINITIONTYPE *prt) {
+static 
+AVFormatContext *
+makeoutputcontext(AVFormatContext *ic, const char *oname, int idx, const OMX_PARAM_PORTDEFINITIONTYPE *prt) {
     AVFormatContext *oc;
     AVOutputFormat *fmt;
     int i;
@@ -452,8 +453,9 @@ void
     //write stream header if any
     avformat_write_header(output_context, NULL);
     
-    pthread_mutex_lock(&ctx->is_running_mutex);
-    pthread_cond_wait(&ctx->is_running_cv, &ctx->is_running_mutex);
+    //do not start doing anything until we get an encoded packet
+    pthread_mutex_lock(&ctx->pipeline.video_encode.is_running_mutex);
+    pthread_cond_wait(&ctx->pipeline.video_encode.is_running_cv, &ctx->pipeline.video_encode.is_running_mutex);
     
     while (!ctx->pipeline.video_encode.eos || !ctx->processed_audio_queue->queue_finished) {
         //FIXME a memory barrier is required here so that we don't race 

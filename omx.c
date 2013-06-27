@@ -285,6 +285,8 @@ omx_init_component(struct omx_pipeline_t* pipe, struct omx_component_t* componen
   pthread_mutex_init(&component->eos_mutex,NULL);
   pthread_cond_init(&component->eos_cv,NULL);
   
+  pthread_mutex_init(&component->is_running_mutex, NULL);
+  pthread_cond_init(&component->is_running_cv, NULL);
 
   component->callbacks.EventHandler = omx_event_handler;
   component->callbacks.EmptyBufferDone = omx_empty_buffer_done;

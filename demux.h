@@ -36,9 +36,6 @@ extern "C" {
         char *output_filename; //output files will be written here
         struct audio_config_t audio_codec;
         int first_packet;
-        //FIXME: used to synchronise the encoded component move it to per-component
-        pthread_mutex_t is_running_mutex;
-        pthread_cond_t is_running_cv;
     };
 
 void *demux_thread(void *ctx);

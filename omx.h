@@ -73,6 +73,9 @@ extern "C" {
         pthread_mutex_t eos_mutex;
         int eos;
         pthread_cond_t eos_cv;
+        
+        pthread_mutex_t is_running_mutex;
+        pthread_cond_t is_running_cv;
     };
 
     struct omx_pipeline_t {
