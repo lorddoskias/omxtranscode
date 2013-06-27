@@ -24,7 +24,6 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #include "avformat.h"
 #include "avcodec.h"
 #include "demux.h"
-#include "encode.h"
 
 #define ENCODED_BITRATE 2000000 //2 megabits
 
@@ -38,7 +37,7 @@ decode_thread(void *context) {
     OMX_PARAM_PORTDEFINITIONTYPE deinterlacer_config;
     OMX_VIDEO_PARAM_PORTFORMATTYPE encoder_format_config; //used for the output of the encoder
     OMX_VIDEO_PARAM_BITRATETYPE encoder_bitrate_config; //used for the output of the encoder
-    struct decode_ctx_t *ctx = (struct decode_ctx_t *) context;
+    struct transcoder_ctx_t *ctx = (struct transcoder_ctx_t *) context;
     struct packet_t *current_packet;
     int bytes_left;
     uint8_t *p; // points to currently copied buffer 
@@ -198,11 +197,89 @@ decode_thread(void *context) {
     // omx_teardown_pipeline(&decoder_ctx->pipeline);
 }
 
+//STUF ABOUT THE WRITER THREAD BELOW THIS LINE
+
+static AVFormatContext *makeoutputcontext(AVFormatContext *ic,
+        const char *oname, int idx, const OMX_PARAM_PORTDEFINITIONTYPE *prt) {
+    AVFormatContext *oc;
+    AVOutputFormat *fmt;
+    int i;
+    AVStream *iflow, *oflow;
+    AVCodec *c;
+    AVCodecContext *cc;
+    const OMX_VIDEO_PORTDEFINITIONTYPE *viddef;
+    int streamindex = 0;
+
+    viddef = &prt->format.video;
+
+    fmt = av_guess_format(NULL, oname, NULL);
+    if (!fmt) {
+        fprintf(stderr, "Can't guess format for %s; defaulting to "
+                "MPEG\n",
+                oname);
+        fmt = av_guess_format(NULL, "MPEG", NULL);
+    }
+    if (!fmt) {
+        fprintf(stderr, "Failed even that.  Bye bye.\n");
+        exit(1);
+    }
+
+    oc = avformat_alloc_context();
+    if (!oc) {
+        fprintf(stderr, "Failed to alloc outputcontext\n");
+        exit(1);
+    }
+    oc->oformat = fmt;
+    snprintf(oc->filename, sizeof (oc->filename), "%s", oname);
+    oc->debug = 1;
+    oc->start_time_realtime = ic->start_time;
+    oc->start_time = ic->start_time;
+    oc->duration = 0;
+    oc->bit_rate = 0;
+
+    for (i = 0; i < ic->nb_streams; i++) {
+        iflow = ic->streams[i];
+        if (i == idx) { /* My new H.264 stream. */
+            c = avcodec_find_encoder(CODEC_ID_H264);
+            oflow = avformat_new_stream(oc, c);
+            cc = oflow->codec;
+            cc->width = viddef->nFrameWidth;
+            cc->height = viddef->nFrameHeight;
+            cc->codec_id = CODEC_ID_H264;
+            cc->codec_type = AVMEDIA_TYPE_VIDEO;
+            cc->bit_rate = ENCODED_BITRATE;
+            cc->time_base = iflow->codec->time_base;
+
+            oflow->avg_frame_rate = iflow->avg_frame_rate;
+            oflow->r_frame_rate = iflow->r_frame_rate;
+            oflow->start_time = AV_NOPTS_VALUE;
+
+        } else { /* Something pre-existing. */
+            c = avcodec_find_encoder(iflow->codec->codec_id);
+            oflow = avformat_new_stream(oc, c);
+            avcodec_copy_context(oflow->codec, iflow->codec);
+            /* Apparently fixes a crash on .mkvs with attachments: */
+            av_dict_copy(&oflow->metadata, iflow->metadata, 0);
+            /* Reset the codec tag so as not to cause problems with output format */
+            oflow->codec->codec_tag = 0;
+        }
+    }
+    for (i = 0; i < oc->nb_streams; i++) {
+        if (oc->oformat->flags & AVFMT_GLOBALHEADER)
+            oc->streams[i]->codec->flags
+                |= CODEC_FLAG_GLOBAL_HEADER;
+        if (oc->streams[i]->codec->sample_rate == 0)
+            oc->streams[i]->codec->sample_rate = 48000; /* ish */
+    }
+
+    return oc;
+}
+
 
 /* Add a audio output stream. */
 static
 AVStream *
-add_audio_stream(AVFormatContext *oc, struct decode_ctx_t *ctx) {
+add_audio_stream(AVFormatContext *oc, struct transcoder_ctx_t *ctx) {
     AVCodecContext *c;
     AVStream *st;
 
@@ -214,12 +291,12 @@ add_audio_stream(AVFormatContext *oc, struct decode_ctx_t *ctx) {
 
     c = st->codec;
     c->codec_type = AVMEDIA_TYPE_AUDIO;
-    c->codec_id = ctx->audio_codec->codec_id;
-    c->sample_rate = ctx->audio_codec->sample_rate; 
-    c->bit_rate = ctx->audio_codec->bit_rate; 
-    c->channels = ctx->audio_codec->channels;
-    c->channel_layout = ctx->audio_codec->channels_layout;
-    c->sample_fmt = ctx->audio_codec->sample_fmt;
+    c->codec_id = ctx->audio_codec.codec_id;
+    c->sample_rate = ctx->audio_codec.sample_rate; 
+    c->bit_rate = ctx->audio_codec.bit_rate; 
+    c->channels = ctx->audio_codec.channels;
+    c->channel_layout = ctx->audio_codec.channels_layout;
+    c->sample_fmt = ctx->audio_codec.sample_fmt;
     
     return st;
 }
@@ -267,7 +344,7 @@ add_video_stream(AVFormatContext *oc) {
 
 static
 void
-write_audio_frame(AVFormatContext *oc, AVStream *st, struct decode_ctx_t *ctx) {
+write_audio_frame(AVFormatContext *oc, AVStream *st, struct transcoder_ctx_t *ctx) {
     AVPacket pkt = {0}; // data and size must be 0;
     struct packet_t *source_audio;
     av_init_packet(&pkt);
@@ -292,7 +369,7 @@ write_audio_frame(AVFormatContext *oc, AVStream *st, struct decode_ctx_t *ctx) {
 
 static 
 void 
-write_video_frame(AVFormatContext *oc, AVStream *st, struct decode_ctx_t *ctx)
+write_video_frame(AVFormatContext *oc, AVStream *st, struct transcoder_ctx_t *ctx)
 {
     AVPacket pkt = { 0 }; // data and size must be 0;
     struct packet_t *source_video;
@@ -323,7 +400,7 @@ write_video_frame(AVFormatContext *oc, AVStream *st, struct decode_ctx_t *ctx)
 void 
 *writer_thread(void *thread_ctx) {
 
-    struct decode_ctx_t *ctx = (struct decode_ctx_t *) thread_ctx;
+    struct transcoder_ctx_t *ctx = (struct transcoder_ctx_t *) thread_ctx;
     AVFormatContext *output_context;
     AVOutputFormat *fmt;
     AVStream *video_stream = NULL, *audio_stream = NULL;
