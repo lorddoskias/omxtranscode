@@ -9,6 +9,7 @@
 #define	DEMUX_H
 
 #include "avcodec.h"
+#include "omx.h"
 
 #ifdef	__cplusplus
 extern "C" {

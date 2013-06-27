@@ -108,7 +108,7 @@ exit:
 }
 
 void 
-packet_flush_queue(struct packet_queue_t* queue) 
+packet_queue_flush(struct packet_queue_t* queue) 
 {
     
     /* Empty the queue */
