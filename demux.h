@@ -29,6 +29,7 @@ extern "C" {
         char *input_filename;
         struct packet_queue_t *input_video_queue;
         struct packet_queue_t *processed_audio_queue;
+        AVRational omx_timebase;
         
         //Transcoder related stuff
         struct omx_pipeline_t pipeline;

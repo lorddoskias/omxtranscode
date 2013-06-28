@@ -89,7 +89,8 @@ init_global_ctx(const char *input_file, const char *output_file) {
     packet_queue_init(global_ctx->processed_audio_queue);
 
     global_ctx->first_packet = 1;
-
+    global_ctx->omx_timebase.num = 1;
+    global_ctx->omx_timebase.den = 1000000;
     if (avformat_open_input(&global_ctx->input_context, global_ctx->input_filename, NULL, NULL) < 0) {
         printf("Error opening input file: %s\n", global_ctx->input_filename);
         abort();

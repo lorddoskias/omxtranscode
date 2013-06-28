@@ -56,7 +56,6 @@ static
 void
 extract_streams(AVFormatContext *fmt_ctx, AVStream *video_stream, AVStream *audio_stream, struct transcoder_ctx_t *ctx) {
     AVPacket av_packet;
-    AVRational omx_timebase = {1, 1000000};
     struct packet_t *packet;
 #if 0
     FILE *out_file;
@@ -75,7 +74,7 @@ extract_streams(AVFormatContext *fmt_ctx, AVStream *video_stream, AVStream *audi
             } else {
                 packet = malloc(sizeof (*packet));
                 //taken from pidvbip - rescaling the pts, dunno if correct
-                packet->PTS = av_rescale_q(av_packet.pts, video_stream->time_base, omx_timebase);
+                packet->PTS = av_rescale_q(av_packet.pts, video_stream->time_base, ctx->omx_timebase);
                 packet->DTS = -1;
                 packet->data_length = av_packet.size;
                 packet->data = malloc(av_packet.size);
