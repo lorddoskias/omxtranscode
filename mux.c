@@ -28,7 +28,7 @@ struct mux_state_t {
 
 static 
 AVFormatContext *
-init_output_context(const struct transcoder_ctx_t *ctx, AVStream *video_stream, AVStream *audio_stream) {
+init_output_context(const struct transcoder_ctx_t *ctx, AVStream **video_stream, AVStream **audio_stream) {
     AVFormatContext *oc;
     AVOutputFormat *fmt;
     AVStream *input_stream, *output_stream;
@@ -57,11 +57,12 @@ init_output_context(const struct transcoder_ctx_t *ctx, AVStream *video_stream, 
 
     for (int i = 0; i < ctx->input_context->nb_streams; i++) {
         input_stream = ctx->input_context->streams[i];
+        output_stream = NULL;
         if (input_stream->index == ctx->video_stream_index) {
             //copy stuff from input video index
             c = avcodec_find_encoder(CODEC_ID_H264);
             output_stream = avformat_new_stream(oc, c);
-            video_stream = output_stream;
+            *video_stream = output_stream;
             cc = output_stream->codec;
             cc->width = input_stream->codec->width;
             cc->height = input_stream->codec->height;
@@ -82,7 +83,7 @@ init_output_context(const struct transcoder_ctx_t *ctx, AVStream *video_stream, 
             /* i care only about audio */
             c = avcodec_find_encoder(input_stream->codec->codec_id);
             output_stream = avformat_new_stream(oc, c);
-            audio_stream = output_stream;
+            *audio_stream = output_stream;
             avcodec_copy_context(output_stream->codec, input_stream->codec);
             /* Apparently fixes a crash on .mkvs with attachments: */
             av_dict_copy(&output_stream->metadata, input_stream->metadata, 0);
@@ -282,7 +283,7 @@ void
 
     struct transcoder_ctx_t *ctx = (struct transcoder_ctx_t *) thread_ctx;
     AVStream *video_stream = NULL, *audio_stream = NULL;
-    AVFormatContext *output_context = init_output_context(ctx, video_stream, audio_stream);
+    AVFormatContext *output_context = init_output_context(ctx, &video_stream, &audio_stream);
     struct mux_state_t mux_state = {0};
 
     //from omxtx
