@@ -75,6 +75,7 @@ extern "C" {
         pthread_cond_t eos_cv;
         
         pthread_mutex_t is_running_mutex;
+        int is_running;
         pthread_cond_t is_running_cv;
     };
 
