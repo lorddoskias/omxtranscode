@@ -34,6 +34,7 @@ init_output_context(const struct transcoder_ctx_t *ctx, AVStream **video_stream,
     AVStream *input_stream, *output_stream;
     AVCodec *c;
     AVCodecContext *cc;
+    int audio_copied = 0; //copy just 1 stream
 
     fmt = av_guess_format("mpegts", NULL, NULL);
     if (!fmt) {
@@ -79,7 +80,7 @@ init_output_context(const struct transcoder_ctx_t *ctx, AVStream **video_stream,
             output_stream->r_frame_rate = input_stream->r_frame_rate;
             output_stream->start_time = AV_NOPTS_VALUE;
 
-        } else if (input_stream->codec->codec_type == AVMEDIA_TYPE_AUDIO) { 
+        } else if ((input_stream->codec->codec_type == AVMEDIA_TYPE_AUDIO) && !audio_copied)  { 
             /* i care only about audio */
             c = avcodec_find_encoder(input_stream->codec->codec_id);
             output_stream = avformat_new_stream(oc, c);
@@ -89,13 +90,13 @@ init_output_context(const struct transcoder_ctx_t *ctx, AVStream **video_stream,
             av_dict_copy(&output_stream->metadata, input_stream->metadata, 0);
             /* Reset the codec tag so as not to cause problems with output format */
             output_stream->codec->codec_tag = 0;
+            audio_copied = 1;
         }
     }
     
     for (int i = 0; i < oc->nb_streams; i++) {
         if (oc->oformat->flags & AVFMT_GLOBALHEADER)
-            oc->streams[i]->codec->flags
-                |= CODEC_FLAG_GLOBAL_HEADER;
+            oc->streams[i]->codec->flags |= CODEC_FLAG_GLOBAL_HEADER;
         if (oc->streams[i]->codec->sample_rate == 0)
             oc->streams[i]->codec->sample_rate = 48000; /* ish */
     }
@@ -137,51 +138,55 @@ write_audio_frame(AVFormatContext *oc, AVStream *st, struct transcoder_ctx_t *ct
     pkt.size = source_audio->data_length;
     pkt.data = source_audio->data;
     pkt.pts = source_audio->PTS;
+    pkt.dts = source_audio->DTS;
+    pkt.duration = source_audio->duration;
     pkt.destruct = avpacket_destruct;
     /* Write the compressed frame to the media file. */
     if (av_interleaved_write_frame(oc, &pkt) != 0) {
         fprintf(stderr, "[DEBUG] Error while writing audio frame\n");
-        exit(1);
     }
 
     packet_queue_free_packet(source_audio, 0);
 }
 
-static 
+static
 bool
 extract_pps_ssp_packet(struct mux_state_t *mux_state, AVPacket *pkt) {
     bool packet_detected = false;
-    
-            if (pkt->data[0] == 0 
-            && pkt->data[1] == 0 
-            && pkt->data[2] == 0 
+
+    if (pkt->data[0] == 0
+            && pkt->data[1] == 0
+            && pkt->data[2] == 0
             && pkt->data[3] == 1) {
-            
-            fprintf(stderr, "[DEBUG] We got SSP/PPS packet\n");
-            
+
+        int packet_type = pkt->data[4] & 0x1f;
+        if (packet_type == SPS_PACKET) {
             packet_detected = true;
-            int packet_type = pkt->data[4] & 0x1f;
-            if (packet_type == SPS_PACKET) {
-                if (mux_state->sps) { free(mux_state->sps); }
-                
-                mux_state->sps = malloc(pkt->size);
-                memcpy(mux_state->sps, pkt->data, pkt->size);
-                mux_state->sps_size = pkt->size;
-                fprintf(stderr, "[DEBUG] Wrote a new SPS, length %d\n", mux_state->sps_size);
-                mux_state->flush_framebuf = false;
-                
-            } else if (packet_type == PPS_PACKET) {
-                if(mux_state->pps) { free(mux_state->pps); }
-                
-                mux_state->pps = malloc(pkt->size);
-                memcpy(mux_state->pps, pkt->data, pkt->size);
-                mux_state->pps_size = pkt->size;
-                fprintf(stderr, "[DEBUG] Wrote a new PPS, length %d\n", mux_state->sps_size);
-                mux_state->flush_framebuf = false;
+            if (mux_state->sps) {
+                free(mux_state->sps);
             }
-            
+
+            mux_state->sps = malloc(pkt->size);
+            memcpy(mux_state->sps, pkt->data, pkt->size);
+            mux_state->sps_size = pkt->size;
+            fprintf(stderr, "[DEBUG] Wrote a new SPS, length %d\n", mux_state->sps_size);
+            mux_state->flush_framebuf = false;
+
+        } else if (packet_type == PPS_PACKET) {
+            packet_detected = true;
+            if (mux_state->pps) {
+                free(mux_state->pps);
+            }
+
+            mux_state->pps = malloc(pkt->size);
+            memcpy(mux_state->pps, pkt->data, pkt->size);
+            mux_state->pps_size = pkt->size;
+            fprintf(stderr, "[DEBUG] Wrote a new PPS, length %d\n", mux_state->pps_size);
+            mux_state->flush_framebuf = false;
         }
-    
+
+    }
+
     return packet_detected;
 }
 
@@ -210,7 +215,8 @@ write_video_frame(AVFormatContext *oc, AVStream *st, struct transcoder_ctx_t *ct
 {
     AVPacket pkt = { 0 }; // data and size must be 0;
     struct packet_t *source_video;
-    mux_state->flush_framebuf = (mux_state->pps && mux_state->sps);
+    //write video frame after we have init'ed the pps/sps packets
+    mux_state->flush_framebuf = (mux_state->pps && mux_state->sps); 
     
     //TODO Put encoded_video_queue into the main ctx
     if(!(source_video = packet_queue_get_next_item_asynch(&ctx->pipeline.encoded_video_queue))) { 
@@ -226,6 +232,7 @@ write_video_frame(AVFormatContext *oc, AVStream *st, struct transcoder_ctx_t *ct
 
         memcpy(&mux_state->buf[mux_state->buf_offset], source_video->data, source_video->data_length);
         mux_state->buf_offset += source_video->data_length;
+        free(source_video->data); //in this case we have to free it
     } else {
         //we got full NAL - write it
         fprintf(stderr, "[DEBUG] We got the end of a NAL - writing\n");
@@ -268,13 +275,17 @@ write_video_frame(AVFormatContext *oc, AVStream *st, struct transcoder_ctx_t *ct
     
     /* Write the compressed frame to the media file. */
     if (mux_state->flush_framebuf) {
-        if (av_interleaved_write_frame(oc, &pkt) != 0) {
-            fprintf(stderr, "[DEBUG] Error while writing video frame\n");
-            exit(1);
-        } 
+        int r;
+//        fprintf(stderr, "Writing video frame\n");
+        if (r = av_interleaved_write_frame(oc, &pkt)) {
+            if (r != 0) {
+                char err[256];
+                av_strerror(r, err, sizeof (err));
+                fprintf(stderr, "[DEBUG] Error while writing video frame : %s\n", err);
+            }
+        }
     }
 
-    
     packet_queue_free_packet(source_video, 0);
 }
 
@@ -304,7 +315,9 @@ void
 
     //do not start doing anything until we get an encoded packet
     pthread_mutex_lock(&ctx->pipeline.video_encode.is_running_mutex);
-    pthread_cond_wait(&ctx->pipeline.video_encode.is_running_cv, &ctx->pipeline.video_encode.is_running_mutex);
+    while (!ctx->pipeline.video_encode.is_running) {
+        pthread_cond_wait(&ctx->pipeline.video_encode.is_running_cv, &ctx->pipeline.video_encode.is_running_mutex);
+    }
 
     while (!ctx->pipeline.video_encode.eos || !ctx->processed_audio_queue->queue_finished) {
         //FIXME a memory barrier is required here so that we don't race 
@@ -329,17 +342,24 @@ void
     av_write_trailer(output_context);
 
     //free all the resources
+    avcodec_close(video_stream->codec);
+    avcodec_close(audio_stream->codec);
     /* Free the streams. */
     for (int i = 0; i < output_context->nb_streams; i++) {
+        av_freep(&output_context->streams[i]->codec);
         av_freep(&output_context->streams[i]);
     }
 
-    if (!(output_context->oformat->flags & AVFMT_NOFILE))
+    if (!(output_context->oformat->flags & AVFMT_NOFILE)) {
         /* Close the output file. */
         avio_close(output_context->pb);
+    }
+       
 
     /* free the stream */
     av_free(output_context);
+    free(mux_state.pps);
+    free(mux_state.sps);
 #if 0
     fclose(out_file);
 #endif
