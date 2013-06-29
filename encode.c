@@ -179,6 +179,7 @@ decode_thread(void *context) {
                 fprintf(stderr, "encoder enabled\n");
                 ctx->pipeline.video_encode.port_settings_changed = 0;
                 //signal the consumer thread it can start polling for data
+                ctx->pipeline.video_encode.is_running = 1;
                 pthread_cond_signal(&ctx->pipeline.video_encode.is_running_cv);
             }
             
