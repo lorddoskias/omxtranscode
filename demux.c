@@ -102,7 +102,8 @@ extract_streams(AVFormatContext *fmt_ctx, AVStream *video_stream, AVStream *audi
             } else {
                 packet = malloc(sizeof (*packet));
                 packet->PTS = av_packet.pts;
-                packet->DTS = -1;
+                packet->DTS = av_packet.dts;
+                packet->duration = av_packet.duration;
                 packet->data_length = av_packet.size;
                 packet->data = malloc(av_packet.size);
                 memcpy(packet->data, av_packet.data, av_packet.size);
