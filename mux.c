@@ -137,8 +137,8 @@ write_audio_frame(AVFormatContext *oc, AVStream *st, struct transcoder_ctx_t *ct
     pkt.stream_index = st->index;
     pkt.size = source_audio->data_length;
     pkt.data = source_audio->data;
-    pkt.pts = source_audio->PTS;
-    pkt.dts = source_audio->DTS;
+    pkt.pts = av_rescale_q(source_audio->PTS, ctx->input_context->streams[ctx->audio_stream_index]->time_base, st->time_base);
+    pkt.dts = av_rescale_q(source_audio->DTS, ctx->input_context->streams[ctx->audio_stream_index]->time_base, st->time_base);
     pkt.duration = source_audio->duration;
     pkt.destruct = avpacket_destruct;
     /* Write the compressed frame to the media file. */
@@ -260,8 +260,8 @@ write_video_frame(AVFormatContext *oc, AVStream *st, struct transcoder_ctx_t *ct
             pkt.flags |= AV_PKT_FLAG_KEY;
         }
 
-        pkt.pts = av_rescale_q(source_video->PTS, ctx->omx_timebase, oc->streams[ctx->video_stream_index]->time_base);
-        if(pkt.pts) { pkt.pts -= mux_state->pts_offset; }
+        pkt.pts = av_rescale_q(source_video->PTS, ctx->omx_timebase, oc->streams[st->index]->time_base);
+//        if(pkt.pts) { pkt.pts -= mux_state->pts_offset; }
         pkt.dts = AV_NOPTS_VALUE;
         pkt.destruct = avpacket_destruct;
         
